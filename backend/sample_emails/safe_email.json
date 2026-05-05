@@ -1,0 +1,18 @@
+{
+  "message_id": "sample-safe-001",
+  "subject": "Weekly project notes",
+  "from": "Alex Rivera <alex@example.com>",
+  "reply_to": "alex@example.com",
+  "to": [
+    "user@example.com"
+  ],
+  "date": "2026-05-05T09:00:00Z",
+  "plain_body": "Hi team, here are the notes from our weekly project sync. No action required.",
+  "html_body": null,
+  "attachments": [],
+  "headers": {
+    "authentication-results": "spf=pass dkim=pass dmarc=pass",
+    "return-path": "alex@example.com"
+  }
+}
+

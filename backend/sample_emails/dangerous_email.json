@@ -1,0 +1,23 @@
+{
+  "message_id": "sample-dangerous-001",
+  "subject": "Urgent wire transfer and invoice update",
+  "from": "CEO Office <ceo-office@examp1e-payments.com>",
+  "reply_to": "payments-approval@external-mail.example",
+  "to": [
+    "user@example.com"
+  ],
+  "date": "2026-05-05T11:30:00Z",
+  "plain_body": "This is urgent. Bypass the normal approval process and send the wire transfer today. Open the attached invoice for details.",
+  "html_body": "<p>This is urgent. Bypass the normal approval process and send the wire transfer today.</p>",
+  "attachments": [
+    {
+      "filename": "invoice.pdf.exe",
+      "mime_type": "application/octet-stream"
+    }
+  ],
+  "headers": {
+    "authentication-results": "spf=fail dkim=fail dmarc=fail",
+    "return-path": "payments-approval@external-mail.example"
+  }
+}
+

@@ -1,0 +1,18 @@
+{
+  "message_id": "sample-suspicious-001",
+  "subject": "Action required: review your account",
+  "from": "Security Team <security-alert@example-support.com>",
+  "reply_to": "helpdesk-alerts@example-mail.com",
+  "to": [
+    "user@example.com"
+  ],
+  "date": "2026-05-05T10:15:00Z",
+  "plain_body": "We noticed unusual activity. Please review your account using the link below within 24 hours.",
+  "html_body": "<p>We noticed unusual activity. <a href=\"http://example-support.com/login\">Review your account</a>.</p>",
+  "attachments": [],
+  "headers": {
+    "authentication-results": "spf=pass dkim=pass dmarc=none",
+    "return-path": "bounce@example-mail.com"
+  }
+}
+
