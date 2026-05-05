@@ -47,6 +47,12 @@ uvicorn app.main:app --reload
 
 Copy `.env.example` to `.env` for local configuration when environment-specific settings are needed.
 
+## Gmail Add-on Setup
+
+The Gmail Add-on files live in `addon/` and are intended to be copied into a Google Apps Script project. Set `BACKEND_BASE_URL` in `addon/Config.gs` to a public HTTPS backend URL before testing in Gmail.
+
+See [docs/gmail-add-on-setup.md](docs/gmail-add-on-setup.md).
+
 ## Testing
 
 Tests will live under `backend/tests`. The initial scaffold includes placeholders only; scoring tests should be added with the backend implementation.
@@ -74,4 +80,3 @@ See [docs/demo-script.md](docs/demo-script.md).
 - Build the Gmail CardService UI.
 - Add focused tests for scoring behavior and edge cases.
 - Add optional user-triggered Gmail risk labels behind broader permissions.
-

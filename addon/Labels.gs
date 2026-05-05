@@ -1,11 +1,21 @@
 /**
- * Optional Gmail risk-labeling placeholders.
- *
- * Labeling requires broader Gmail permissions and must remain separate from the
- * read-only MVP unless explicitly requested.
+ * Placeholder for future optional Gmail risk labels.
  */
 
-function applyRiskLabel_() {
-  throw new Error('Optional Gmail labeling is not implemented in this scaffold.');
+function buildLabelFeatureUnavailableCard() {
+  var section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText(
+      'Persistent Gmail risk labels are planned as an optional feature. They are not enabled in the MVP because applying labels requires broader Gmail modification permissions.'
+    ));
+
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader()
+      .setTitle('Risk labels unavailable')
+      .setSubtitle(APP_NAME))
+    .addSection(section)
+    .build();
 }
 
+function maybeApplyRiskLabelPlaceholder() {
+  return buildLabelFeatureUnavailableCard();
+}
