@@ -1,6 +1,8 @@
-"""Pydantic models for the planned MailWatch Tower API contract."""
+"""Pydantic models for the MailWatch Tower API contract."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.config import get_settings
 
 
 class AttachmentInput(BaseModel):
@@ -16,6 +18,8 @@ class AttachmentInput(BaseModel):
 class AnalyzeRequest(BaseModel):
     """Minimal email fields required for deterministic risk analysis."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     message_id: str | None = None
     subject: str | None = None
     from_: str | None = Field(default=None, alias="from")
@@ -27,9 +31,28 @@ class AnalyzeRequest(BaseModel):
     attachments: list[AttachmentInput] = Field(default_factory=list)
     headers: dict[str, str] = Field(default_factory=dict)
 
+    @field_validator("plain_body", "html_body", mode="before")
+    @classmethod
+    def cap_body_text(cls, value: object) -> str | None:
+        """Apply configured body length limits before analysis."""
+        if value is None:
+            return None
+        settings = get_settings()
+        return str(value)[: settings.max_body_chars]
+
+    @field_validator("attachments", mode="before")
+    @classmethod
+    def cap_attachments(cls, value: object) -> object:
+        """Limit attachment metadata items before analyzers see them."""
+        if isinstance(value, list):
+            return value[: get_settings().max_attachments]
+        return value
+
 
 class Signal(BaseModel):
     """Explainable risk signal returned to the Gmail Add-on."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     category: str
     category_label: str
@@ -41,10 +64,9 @@ class Signal(BaseModel):
 
 
 class AnalyzeResponse(BaseModel):
-    """Planned structured analysis response.
+    """Structured analysis response returned by the backend."""
 
-    TODO: Populate from the scoring engine after analyzers are implemented.
-    """
+    model_config = ConfigDict(populate_by_name=True)
 
     score: int
     raw_score: int

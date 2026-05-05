@@ -1,14 +1,14 @@
 {
   "message_id": "sample-dangerous-001",
-  "subject": "Urgent wire transfer and invoice update",
-  "from": "CEO Office <ceo-office@examp1e-payments.com>",
+  "subject": "Urgent PayPal security reset and invoice payment",
+  "from": "PayPal Security <security@paypa1-security.xyz>",
   "reply_to": "payments-approval@external-mail.example",
   "to": [
     "user@example.com"
   ],
   "date": "2026-05-05T11:30:00Z",
-  "plain_body": "This is urgent. Bypass the normal approval process and send the wire transfer today. Open the attached invoice for details.",
-  "html_body": "<p>This is urgent. Bypass the normal approval process and send the wire transfer today.</p>",
+  "plain_body": "Dear customer, your PayPal account will be suspended today. Verify your password and complete the security reset immediately at http://198.51.100.24/login. Bypass the normal approval process and send payment for the attached invoice.",
+  "html_body": "<p>Dear customer, your PayPal account will be suspended today. Verify your password and complete the security reset immediately.</p><p><a href=\"http://198.51.100.24/login\">paypal.com</a></p><p><a href=\"https://secure-paypal-login.xyz/payments\">Payment portal</a></p>",
   "attachments": [
     {
       "filename": "invoice.pdf.exe",
@@ -16,8 +16,7 @@
     }
   ],
   "headers": {
-    "authentication-results": "spf=fail dkim=fail dmarc=fail",
-    "return-path": "payments-approval@external-mail.example"
+    "Authentication-Results": "mx.google.com; spf=fail dkim=fail dmarc=fail",
+    "Return-Path": "payments-approval@external-mail.example"
   }
 }
-

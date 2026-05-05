@@ -1,18 +1,17 @@
 {
   "message_id": "sample-safe-001",
-  "subject": "Weekly project notes",
-  "from": "Alex Rivera <alex@example.com>",
-  "reply_to": "alex@example.com",
+  "subject": "University project meeting notes",
+  "from": "Maya Cohen <maya.cohen@university.edu>",
+  "reply_to": "maya.cohen@university.edu",
   "to": [
-    "user@example.com"
+    "student@example.com"
   ],
   "date": "2026-05-05T09:00:00Z",
-  "plain_body": "Hi team, here are the notes from our weekly project sync. No action required.",
-  "html_body": null,
+  "plain_body": "Hi team, thanks for joining the project meeting. The notes are attached in the course portal, and our next discussion is scheduled for next Tuesday.",
+  "html_body": "<p>Hi team, thanks for joining the project meeting. The notes are available in the course portal.</p>",
   "attachments": [],
   "headers": {
-    "authentication-results": "spf=pass dkim=pass dmarc=pass",
-    "return-path": "alex@example.com"
+    "Authentication-Results": "mx.google.com; spf=pass dkim=pass dmarc=pass",
+    "Return-Path": "maya.cohen@university.edu"
   }
 }
-

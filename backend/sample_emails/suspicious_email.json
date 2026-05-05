@@ -1,18 +1,17 @@
 {
   "message_id": "sample-suspicious-001",
-  "subject": "Action required: review your account",
-  "from": "Security Team <security-alert@example-support.com>",
-  "reply_to": "helpdesk-alerts@example-mail.com",
+  "subject": "Action needed within 24 hours",
+  "from": "Account Support <account.support@gmail.com>",
+  "reply_to": "case-review@example-support.com",
   "to": [
     "user@example.com"
   ],
   "date": "2026-05-05T10:15:00Z",
-  "plain_body": "We noticed unusual activity. Please review your account using the link below within 24 hours.",
-  "html_body": "<p>We noticed unusual activity. <a href=\"http://example-support.com/login\">Review your account</a>.</p>",
+  "plain_body": "Dear customer, we noticed unusual account activity. Please review this within 24 hours: https://bit.ly/review-case",
+  "html_body": "<p>Dear customer, we noticed unusual account activity. Please review this within 24 hours: <a href=\"https://bit.ly/review-case\">review your account</a>.</p>",
   "attachments": [],
   "headers": {
-    "authentication-results": "spf=pass dkim=pass dmarc=none",
-    "return-path": "bounce@example-mail.com"
+    "Authentication-Results": "mx.google.com; spf=pass dkim=pass dmarc=pass",
+    "Return-Path": "account.support@gmail.com"
   }
 }
-

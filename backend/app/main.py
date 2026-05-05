@@ -1,13 +1,9 @@
-"""FastAPI entrypoint for the MailWatch Tower backend.
+"""FastAPI entrypoint for the MailWatch Tower backend."""
 
-This scaffold intentionally exposes only a health endpoint and a placeholder
-analysis endpoint. The scoring engine will be implemented in a later step.
-"""
+from fastapi import FastAPI
 
-from fastapi import FastAPI, status
-from fastapi.responses import JSONResponse
-
-from app.models import AnalyzeRequest
+from app.models import AnalyzeRequest, AnalyzeResponse
+from app.scoring.engine import score_email
 
 app = FastAPI(
     title="MailWatch Tower Backend",
@@ -22,18 +18,7 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "MailWatch Tower backend"}
 
 
-@app.post("/analyze")
-def analyze_email(request: AnalyzeRequest) -> JSONResponse:
-    """Placeholder for the planned email analysis endpoint.
-
-    TODO: Wire this endpoint to analyzers, deterministic scoring, verdict
-    mapping, recommendations, and limitations.
-    """
-    _ = request
-    return JSONResponse(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        content={
-            "detail": "Email analysis is not implemented in the scaffold yet.",
-        },
-    )
-
+@app.post("/analyze", response_model=AnalyzeResponse, response_model_by_alias=True)
+def analyze_email(request: AnalyzeRequest) -> AnalyzeResponse:
+    """Analyze an email using deterministic local risk signals."""
+    return score_email(request)

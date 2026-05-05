@@ -16,3 +16,11 @@ VERDICT_THRESHOLDS: tuple[tuple[int, int, str], ...] = (
     (80, 100, "Dangerous"),
 )
 
+
+def verdict_for_score(score: int) -> tuple[str, str]:
+    """Return the verdict and color for a capped score."""
+    bounded_score = max(0, min(100, score))
+    for minimum, maximum, verdict in VERDICT_THRESHOLDS:
+        if minimum <= bounded_score <= maximum:
+            return verdict, VERDICT_COLORS[verdict]
+    return "Dangerous", VERDICT_COLORS["Dangerous"]
