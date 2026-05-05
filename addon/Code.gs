@@ -5,13 +5,13 @@
 function buildHomeCard(e) {
   var section = CardService.newCardSection()
     .addWidget(CardService.newTextParagraph().setText(
-      'Explainable email risk analysis for Gmail.'
+      ltrText('Explainable email risk analysis for Gmail.')
     ))
     .addWidget(CardService.newTextParagraph().setText(
-      'Open an email to analyze sender, links, attachments, content, and authentication indicators.'
+      ltrText('Open an email to analyze sender identity, links, attachments, content, and authentication indicators.')
     ))
     .addWidget(CardService.newTextParagraph().setText(
-      'MailWatch Tower analyzes the currently opened message only. It does not store emails, open attachments, or visit links.'
+      ltrText('MailWatch Tower analyzes only the currently opened message. It does not store emails, open attachments, or visit links.')
     ))
     .addWidget(CardService.newTextButton()
       .setText('Check Backend Health')

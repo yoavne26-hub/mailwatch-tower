@@ -28,3 +28,4 @@ This guide explains how to run the MailWatch Tower Gmail Add-on MVP manually in 
 - Optional labels require broader Gmail permissions and are future work.
 - The add-on sends minimal current-message fields to the backend and does not send attachment bytes.
 - MailWatch Tower does not open attachments or visit links.
+- Optional polish: replace `logoUrl` with a custom hosted MailWatch Tower watchtower icon.
