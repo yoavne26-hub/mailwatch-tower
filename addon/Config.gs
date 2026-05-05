@@ -1,5 +1,5 @@
 var APP_NAME = 'MailWatch Tower';
-var BACKEND_BASE_URL = 'https://REPLACE_WITH_PUBLIC_BACKEND_URL';
+var BACKEND_BASE_URL = 'https://goto-highest-assess-llc.trycloudflare.com';
 var API_TIMEOUT_MS = 15000;
 var MAX_BODY_CHARS = 20000;
 var MAX_ATTACHMENTS = 30;
