@@ -378,7 +378,7 @@ The explicit temp path avoids a local Windows/OneDrive permission issue encounte
 
 ## End-to-End Flow Chart
 
-<img src="screenshots/mermaid-diagram.png" alt="MailWatch Tower end-to-end flow chart" width="650">
+<img src="screenshots/end-to-end-flow-chart.png" alt="MailWatch Tower end-to-end flow chart" width="650">
 
 *End-to-end flow from Gmail message opening through backend scoring, feedback, and refreshed card rendering.*
 
