@@ -240,12 +240,12 @@ Signal category colors:
 
 | Signal Category | Color | Meaning |
 | --- | --- | --- |
-| Sender identity | `#A67C52` | Sender/domain identity and trust context |
-| Links and URLs | `#0B3D91` | URL/link risk indicators |
-| Attachments | `#E91E63` | Attachment metadata risk |
-| Content / social engineering | `#000000` | Urgency, credential, payment, and threat language |
-| Headers / authentication | `#6A1B9A` | SPF, DKIM, DMARC, and header-related context |
-| Metadata / context | `#4A4A4A` | External intelligence and feedback context |
+| Sender identity | ![#A67C52](https://img.shields.io/badge/-%23A67C52-A67C52?style=flat-square&labelColor=A67C52) `#A67C52` | Sender/domain identity and trust context |
+| Links and URLs | ![#0B3D91](https://img.shields.io/badge/-%230B3D91-0B3D91?style=flat-square&labelColor=0B3D91) `#0B3D91` | URL/link risk indicators |
+| Attachments | ![#E91E63](https://img.shields.io/badge/-%23E91E63-E91E63?style=flat-square&labelColor=E91E63) `#E91E63` | Attachment metadata risk |
+| Content / social engineering | ![#000000](https://img.shields.io/badge/-%23000000-000000?style=flat-square&labelColor=000000) `#000000` | Urgency, credential, payment, and threat language |
+| Headers / authentication | ![#6A1B9A](https://img.shields.io/badge/-%236A1B9A-6A1B9A?style=flat-square&labelColor=6A1B9A) `#6A1B9A` | SPF, DKIM, DMARC, and header-related context |
+| Metadata / context | ![#4A4A4A](https://img.shields.io/badge/-%234A4A4A-4A4A4A?style=flat-square&labelColor=4A4A4A) `#4A4A4A` | External intelligence and feedback context |
 
 ## Scoring Logic
 
@@ -286,11 +286,11 @@ Verdict colors:
 
 | Verdict | Color |
 | --- | --- |
-| Safe | `#188038` |
-| Low Risk | `#4FC3F7` |
-| Suspicious | `#FBC02D` |
-| High Risk | `#F57C00` |
-| Dangerous | `#D93025` |
+| Safe | ![#188038](https://img.shields.io/badge/-%23188038-188038?style=flat-square&labelColor=188038) `#188038` |
+| Low Risk | ![#4FC3F7](https://img.shields.io/badge/-%234FC3F7-4FC3F7?style=flat-square&labelColor=4FC3F7) `#4FC3F7` |
+| Suspicious | ![#FBC02D](https://img.shields.io/badge/-%23FBC02D-FBC02D?style=flat-square&labelColor=FBC02D) `#FBC02D` |
+| High Risk | ![#F57C00](https://img.shields.io/badge/-%23F57C00-F57C00?style=flat-square&labelColor=F57C00) `#F57C00` |
+| Dangerous | ![#D93025](https://img.shields.io/badge/-%23D93025-D93025?style=flat-square&labelColor=D93025) `#D93025` |
 
 Every signal that contributes points is shown in the relevant drill-down card. Category caps prevent one noisy category from dominating without bounds. The final score is clamped between `0` and `100`.
 
@@ -478,4 +478,3 @@ It is not a perfect detector. It is a focused, interview-ready MVP that makes ri
 Built by [Yoav Nesher](https://github.com/yoavne26-hub)
 Industrial Engineering and Management student, specializing in Intelligent Systems  
 Ben-Gurion University of the Negev
-
