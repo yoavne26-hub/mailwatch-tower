@@ -177,7 +177,7 @@ def _apply_safe_browsing_trust_conflicts(
         if match.indicator_type == "link_domain"
     }
     for check in categories["external_intel"].checks:
-        if check.name != "Safe Browsing match" or not check.indicator_value:
+        if check.name not in {"Safe Browsing match", "Google Safe Browsing match"} or not check.indicator_value:
             continue
         normalized_url = normalize_indicator("url", check.indicator_value)
         normalized_domain = domain_for_url_indicator(check.indicator_value)

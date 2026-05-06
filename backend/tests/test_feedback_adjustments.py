@@ -56,7 +56,7 @@ def test_trusted_sender_does_not_suppress_safe_browsing_match(tmp_path) -> None:
     result = analyze_email(request, feedback_service=service, safe_browsing_client=FakeSafeBrowsing())
 
     assert result.categories["external_intel"].score == 50
-    assert any(check.name == "Safe Browsing match" for check in result.categories["external_intel"].checks)
+    assert any(check.name == "Google Safe Browsing match" for check in result.categories["external_intel"].checks)
 
 
 def test_trusted_url_reduces_local_url_heuristic_score(tmp_path) -> None:
