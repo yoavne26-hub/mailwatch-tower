@@ -3,23 +3,39 @@
  */
 
 function analyzeEmail(payload) {
-  var response = UrlFetchApp.fetch(BACKEND_BASE_URL + '/analyze', {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
-  });
+  return callBackend('/analyze', 'post', payload);
+}
 
-  return parseJsonResponse_(response, 'POST /analyze');
+function submitFeedbackToBackend(payload) {
+  return callBackend('/feedback', 'post', payload);
 }
 
 function checkBackendHealth() {
-  var response = UrlFetchApp.fetch(BACKEND_BASE_URL + '/health', {
-    method: 'get',
-    muteHttpExceptions: true,
-  });
+  return callBackend('/health', 'get', null);
+}
 
-  return parseJsonResponse_(response, 'GET /health');
+function callBackend(path, method, payload) {
+  var url = getBackendBaseUrl() + path;
+  var options = {
+    method: method,
+    muteHttpExceptions: true,
+    headers: buildBackendHeaders_(),
+  };
+
+  if (payload !== null && payload !== undefined) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(payload);
+  }
+
+  var response;
+  try {
+    response = UrlFetchApp.fetch(url, options);
+  } catch (error) {
+    Logger.log('Backend request failed for ' + path + ': ' + sanitizeLogText_(error && error.message ? error.message : String(error)));
+    throw new Error('Backend service is unreachable. Check BACKEND_BASE_URL / tunnel URL and backend /health.');
+  }
+
+  return parseJsonResponse_(response, method.toUpperCase() + ' ' + path);
 }
 
 function checkBackendHealthAction(e) {
@@ -45,7 +61,7 @@ function parseJsonResponse_(response, operationName) {
   try {
     parsed = responseText ? JSON.parse(responseText) : {};
   } catch (error) {
-    throw new Error(operationName + ' returned non-JSON response: ' + truncateText(responseText, 500));
+    throw new Error(operationName + ' returned a response that was not valid JSON.');
   }
 
   if (statusCode < 200 || statusCode >= 300) {
@@ -53,4 +69,17 @@ function parseJsonResponse_(response, operationName) {
   }
 
   return parsed;
+}
+
+function buildBackendHeaders_() {
+  var headers = {};
+  var sharedSecret = getAddonSharedSecret();
+  if (sharedSecret) {
+    headers['X-MailWatch-Addon-Secret'] = sharedSecret;
+  }
+  return headers;
+}
+
+function sanitizeLogText_(value) {
+  return String(value || '').slice(0, 300);
 }

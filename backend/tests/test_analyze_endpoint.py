@@ -1,51 +1,70 @@
-import json
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
 from app.main import app
 
-SAMPLES_DIR = Path(__file__).resolve().parents[1] / "sample_emails"
 
-
-def load_sample(name: str) -> dict:
-    return json.loads((SAMPLES_DIR / name).read_text(encoding="utf-8"))
-
-
-def test_analyze_safe_sample_returns_safe_or_low_risk() -> None:
+def test_health_returns_documented_payload() -> None:
     client = TestClient(app)
 
-    response = client.post("/analyze", json=load_sample("safe_email.json"))
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "service": "mailwatch-tower-backend",
+        "version": "1.0.0",
+    }
+
+
+def test_analyze_returns_ui_ready_fields(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'feedback.db'}")
+    client = TestClient(app)
+    payload = {
+        "message_id": "msg-1",
+        "sender_email": "security@paypa1-security.xyz",
+        "sender_display_name": "PayPal Security",
+        "reply_to": "approval@example.net",
+        "return_path": "bounce@example.net",
+        "subject": "Urgent password reset",
+        "body_text": "Dear customer, verify your password today at http://198.51.100.24/login",
+        "urls": [{"url": "http://198.51.100.24/login", "surrounding_text": "verify password"}],
+        "attachments": [{"filename": "invoice.pdf.exe", "mime_type": "application/octet-stream"}],
+        "headers": {"Authentication-Results": "spf=fail dkim=fail dmarc=fail"},
+    }
+
+    response = client.post("/analyze", json=payload)
     data = response.json()
 
     assert response.status_code == 200
-    assert data["verdict"] in {"Safe", "Low Risk"}
-    assert 0 <= data["score"] <= 100
-    assert "signals" in data
-    assert "recommendations" in data
-    assert "limitations" in data
+    for field in [
+        "analysis_id",
+        "message_fingerprint",
+        "final_score",
+        "base_score",
+        "verdict",
+        "summary",
+        "category_scores",
+        "applied_adjustments",
+        "categories",
+        "recommended_actions",
+    ]:
+        assert field in data
+    for category in ["sender_auth", "links", "attachments", "content", "external_intel"]:
+        assert category in data["categories"]
+        detail = data["categories"][category]
+        for field in ["title", "score", "max_score", "status", "short_summary", "checks", "feedback_actions"]:
+            assert field in detail
+    first_check = data["categories"]["sender_auth"]["checks"][0]
+    assert {"name", "result", "points", "explanation", "evidence_summary"} <= set(first_check)
 
 
-def test_analyze_suspicious_sample_returns_suspicious_or_high_risk() -> None:
+def test_analyze_missing_fields_and_malformed_urls_do_not_crash(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'feedback.db'}")
     client = TestClient(app)
 
-    response = client.post("/analyze", json=load_sample("suspicious_email.json"))
-    data = response.json()
+    response = client.post("/analyze", json={"urls": [{"url": "http://[not-valid"}]})
 
     assert response.status_code == 200
-    assert data["verdict"] in {"Suspicious", "High Risk"}
-    assert data["score"] == data["raw_score"]
-
-
-def test_analyze_dangerous_sample_is_capped_dangerous() -> None:
-    client = TestClient(app)
-
-    response = client.post("/analyze", json=load_sample("dangerous_email.json"))
     data = response.json()
-
-    assert response.status_code == 200
-    assert data["verdict"] == "Dangerous"
-    assert data["score"] == 100
-    assert data["raw_score"] > 100
-    assert data["verdict_color"] == "#D93025"
-    assert all("name" in signal for signal in data["signals"])
+    assert 0 <= data["final_score"] <= 100
+    assert data["categories"]["external_intel"]["checks"][0]["result"] == "not_available"

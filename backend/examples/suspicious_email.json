@@ -1,0 +1,21 @@
+{
+  "message_id": "demo-suspicious-001",
+  "sender_email": "account.support@gmail.com",
+  "sender_display_name": "Account Support",
+  "from_header": "Account Support <account.support@gmail.com>",
+  "reply_to": "case-review@example-support.com",
+  "return_path": "account.support@gmail.com",
+  "subject": "Action needed within 24 hours",
+  "body_text": "Dear customer, we noticed unusual activity. Please verify your account within 24 hours at https://bit.ly/review-case",
+  "urls": [
+    {
+      "url": "https://bit.ly/review-case",
+      "source": "body",
+      "surrounding_text": "verify your account within 24 hours"
+    }
+  ],
+  "attachments": [],
+  "headers": {
+    "Authentication-Results": "spf=pass dkim=pass dmarc=pass"
+  }
+}

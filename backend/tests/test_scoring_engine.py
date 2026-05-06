@@ -1,53 +1,60 @@
-from app.models import AnalyzeRequest, Signal
-from app.scoring.engine import _category_breakdown, score_email
+from app.models import AnalyzeRequest
+from app.scoring.engine import analyze_email
+from app.scoring.verdicts import verdict_for_score
 
 
-def test_raw_score_can_exceed_100_while_score_is_capped() -> None:
+def test_category_caps_and_final_score_clamp() -> None:
     request = AnalyzeRequest(
-        subject="Urgent PayPal security reset and payment",
-        from_="PayPal Security <security@paypa1-security.xyz>",
-        reply_to="approval@external.example",
-        plain_body=(
-            "Dear customer, verify your password immediately at "
-            "http://198.51.100.24/login and send payment for the invoice today. "
-            "Bypass the normal process."
+        sender_email="security@paypa1-security.xyz",
+        sender_display_name="PayPal Security",
+        reply_to="approval@example.net",
+        return_path="bounce@example.net",
+        subject="Urgent password reset invoice payment delivery payroll",
+        body_text=(
+            "Dear customer, verify your password and OTP immediately. "
+            "Send payment for the invoice today. Your account will be suspended. "
+            "Track the delivery and review payroll."
         ),
-        html_body='<a href="http://198.51.100.24/login">paypal.com</a>',
+        urls=[
+            {"url": "http://198.51.100.24/login", "surrounding_text": "verify password payment"},
+            {"url": "https://bit.ly/pay", "surrounding_text": "payment"},
+            {"url": "https://xn--pple-43d.com", "surrounding_text": "login"},
+            {"url": "https://example.click/path", "surrounding_text": "security"},
+            {"url": "https://one.example/a"},
+            {"url": "https://two.example/a"},
+        ],
         attachments=[{"filename": "invoice.pdf.exe", "mime_type": "application/octet-stream"}],
-        headers={
-            "Authentication-Results": "spf=fail dkim=fail dmarc=fail",
-            "Return-Path": "approval@external.example",
-        },
-    )
-
-    result = score_email(request)
-
-    assert result.raw_score > 100
-    assert result.score == 100
-    assert result.verdict == "Dangerous"
-
-
-def test_category_breakdown_equals_signal_points_by_category() -> None:
-    signals = [
-        Signal(category="sender", category_label="Sender Identity", category_color="#A67C52", name="A", severity="low", points=5, explanation="x"),
-        Signal(category="sender", category_label="Sender Identity", category_color="#A67C52", name="B", severity="low", points=7, explanation="x"),
-        Signal(category="links", category_label="Links and URLs", category_color="#0B3D91", name="C", severity="low", points=8, explanation="x"),
-    ]
-
-    breakdown = _category_breakdown(signals)
-
-    assert breakdown["sender"] == 12
-    assert breakdown["links"] == 8
-    assert breakdown["attachments"] == 0
-
-
-def test_header_failures_are_detected_by_scoring_engine() -> None:
-    request = AnalyzeRequest(
-        from_="Sender <sender@example.com>",
         headers={"Authentication-Results": "spf=fail dkim=fail dmarc=fail"},
     )
 
-    result = score_email(request)
-    signal_names = {signal.signal_name for signal in result.signals}
+    result = analyze_email(request)
 
-    assert {"SPF fail", "DKIM fail", "DMARC fail"} <= signal_names
+    assert result.categories["sender_auth"].score <= 25
+    assert result.categories["links"].score <= 35
+    assert result.categories["attachments"].score <= 25
+    assert result.categories["content"].score <= 30
+    assert 0 <= result.final_score <= 100
+    assert result.verdict == "Dangerous"
+
+
+def test_verdict_mapping() -> None:
+    assert verdict_for_score(0)[0] == "Safe"
+    assert verdict_for_score(20)[0] == "Low Risk"
+    assert verdict_for_score(40)[0] == "Suspicious"
+    assert verdict_for_score(60)[0] == "High Risk"
+    assert verdict_for_score(80)[0] == "Dangerous"
+
+
+def test_checks_include_points_and_explanations() -> None:
+    result = analyze_email(
+        AnalyzeRequest(
+            sender_email="support@example.com",
+            reply_to="case@example.net",
+            headers={"Authentication-Results": "spf=fail"},
+        )
+    )
+
+    checks = result.categories["sender_auth"].checks
+    assert any(check.points > 0 for check in checks)
+    assert all(check.explanation for check in checks)
+    assert all(check.evidence_summary for check in checks)

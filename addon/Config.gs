@@ -1,19 +1,41 @@
 var APP_NAME = 'MailWatch Tower';
-var BACKEND_BASE_URL = 'https://beast-advocate-simple-local.trycloudflare.com';
+var BACKEND_BASE_URL_PROPERTY = 'BACKEND_BASE_URL';
+var ADDON_SHARED_SECRET_PROPERTY = 'ADDON_SHARED_SECRET';
+var FALLBACK_BACKEND_BASE_URL = 'https://beast-advocate-simple-local.trycloudflare.com';
 var API_TIMEOUT_MS = 15000;
 var MAX_BODY_CHARS = 20000;
-var MAX_ATTACHMENTS = 30;
+var MAX_URLS = 30;
+var MAX_ATTACHMENTS = 20;
+var ANALYSIS_CACHE_SECONDS = 300;
+
+var CATEGORY_ORDER = [
+  'sender_auth',
+  'links',
+  'attachments',
+  'content',
+  'external_intel',
+  'user_feedback',
+];
+
+var CATEGORY_LABELS = {
+  sender_auth: 'Sender & Authentication',
+  links: 'Links & External Intelligence',
+  attachments: 'Attachments',
+  content: 'Content & Social Engineering',
+  external_intel: 'External Intelligence',
+  user_feedback: 'User Feedback',
+};
 
 var CATEGORY_COLORS = {
-  sender: '#A67C52',
+  sender_auth: '#A67C52',
   links: '#0B3D91',
   attachments: '#E91E63',
   content: '#000000',
-  headers: '#6A1B9A',
-  metadata: '#4A4A4A',
+  external_intel: '#6A1B9A',
+  user_feedback: '#4A4A4A',
 };
 
-var CATEGORY_LABELS = {
+var LEGACY_CATEGORY_LABELS = {
   sender: 'Sender identity',
   links: 'Links and URLs',
   attachments: 'Attachments',
@@ -30,5 +52,15 @@ var VERDICT_COLORS = {
   Dangerous: '#D93025',
 };
 
-// Category color explains the type of risk signal.
-// Verdict color explains overall risk severity.
+function getBackendBaseUrl() {
+  var configured = PropertiesService.getScriptProperties().getProperty(BACKEND_BASE_URL_PROPERTY);
+  return trimTrailingSlash_(configured || FALLBACK_BACKEND_BASE_URL);
+}
+
+function getAddonSharedSecret() {
+  return PropertiesService.getScriptProperties().getProperty(ADDON_SHARED_SECRET_PROPERTY);
+}
+
+function trimTrailingSlash_(value) {
+  return String(value || '').replace(/\/+$/, '');
+}

@@ -2,7 +2,7 @@
 
 import ipaddress
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -14,6 +14,25 @@ URL_PATTERN = re.compile(r"https?://[^\s<>'\")]+", flags=re.IGNORECASE)
 def safe_parse_url(value: str):
     """Parse a URL-like string without visiting or fetching it."""
     return urlparse(value)
+
+
+def normalize_url_for_analysis(value: str) -> str:
+    """Normalize URL for comparison without preserving fragments or query tokens."""
+    raw_value = (value or "").strip()
+    try:
+        parsed = urlsplit(raw_value)
+    except ValueError:
+        return raw_value
+    if not parsed.scheme and parsed.netloc == "" and parsed.path:
+        raw_value = "https://" + raw_value
+        try:
+            parsed = urlsplit(raw_value)
+        except ValueError:
+            return raw_value
+    scheme = (parsed.scheme or "https").lower()
+    netloc = parsed.netloc.lower()
+    path = parsed.path or "/"
+    return urlunsplit((scheme, netloc, path, "", ""))
 
 
 def extract_urls_from_text(value: str | None) -> list[str]:
@@ -43,6 +62,16 @@ def hostname_for_url(value: str) -> str | None:
     except ValueError:
         return None
     return normalize_domain(parsed.hostname)
+
+
+def registrable_like_domain(hostname: str | None) -> str | None:
+    """Return a simple comparison domain without using network/public suffix data."""
+    if not hostname:
+        return None
+    parts = hostname.lower().strip(".").split(".")
+    if len(parts) < 2:
+        return hostname.lower()
+    return ".".join(parts[-2:])
 
 
 def is_ip_hostname(hostname: str | None) -> bool:

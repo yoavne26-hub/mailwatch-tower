@@ -1,4 +1,4 @@
-"""Configuration helpers for the MailWatch Tower backend."""
+"""Runtime configuration for the MailWatch Tower backend."""
 
 import os
 from dataclasses import dataclass
@@ -6,28 +6,43 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
-    """Runtime settings loaded from environment variables."""
+    """Backend settings loaded from environment variables."""
 
-    environment: str = "local"
+    app_env: str = "local"
+    database_url: str = "sqlite:///mailwatch.db"
+    safe_browsing_api_key: str | None = None
+    log_level: str = "INFO"
+    allowed_origins: str | None = None
+    addon_shared_secret: str | None = None
     max_body_chars: int = 20_000
+    max_subject_chars: int = 500
     max_urls: int = 50
     max_attachments: int = 30
+    default_user_scope: str = "local-demo"
 
 
 def get_settings() -> Settings:
-    """Load settings without introducing external configuration dependencies."""
-    def read_positive_int(name: str, default: int) -> int:
-        raw_value = os.getenv(name)
-        if raw_value is None:
-            return default
-        try:
-            return max(0, int(raw_value))
-        except ValueError:
-            return default
-
+    """Load settings without requiring an external config package."""
     return Settings(
-        environment=os.getenv("MAILWATCH_ENV", "local"),
-        max_body_chars=read_positive_int("MAX_BODY_CHARS", 20_000),
-        max_urls=read_positive_int("MAX_URLS", 50),
-        max_attachments=read_positive_int("MAX_ATTACHMENTS", 30),
+        app_env=os.getenv("APP_ENV", os.getenv("MAILWATCH_ENV", "local")),
+        database_url=os.getenv("DATABASE_URL", "sqlite:///mailwatch.db"),
+        safe_browsing_api_key=os.getenv("SAFE_BROWSING_API_KEY") or None,
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        allowed_origins=os.getenv("ALLOWED_ORIGINS") or None,
+        addon_shared_secret=os.getenv("ADDON_SHARED_SECRET") or None,
+        max_body_chars=_read_positive_int("MAX_BODY_CHARS", 20_000),
+        max_subject_chars=_read_positive_int("MAX_SUBJECT_CHARS", 500),
+        max_urls=_read_positive_int("MAX_URLS", 50),
+        max_attachments=_read_positive_int("MAX_ATTACHMENTS", 30),
+        default_user_scope=os.getenv("USER_SCOPE", "local-demo"),
     )
+
+
+def _read_positive_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return default

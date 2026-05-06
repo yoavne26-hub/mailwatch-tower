@@ -1,0 +1,33 @@
+{
+  "message_id": "demo-malicious-001",
+  "sender_email": "security@paypa1-security.xyz",
+  "sender_display_name": "PayPal Security",
+  "from_header": "PayPal Security <security@paypa1-security.xyz>",
+  "reply_to": "payments-approval@external-mail.example",
+  "return_path": "payments-approval@external-mail.example",
+  "subject": "Urgent PayPal security reset and invoice payment",
+  "body_text": "Dear customer, your PayPal account will be suspended today. Verify your password and complete the security reset immediately at http://198.51.100.24/login. Bypass the normal approval process and send payment for the attached invoice.",
+  "urls": [
+    {
+      "url": "http://198.51.100.24/login",
+      "source": "body",
+      "anchor_text": "paypal.com",
+      "surrounding_text": "verify your password and complete the security reset"
+    },
+    {
+      "url": "https://secure-paypal-login.xyz/payments",
+      "source": "body",
+      "surrounding_text": "send payment for the attached invoice"
+    }
+  ],
+  "attachments": [
+    {
+      "filename": "invoice.pdf.exe",
+      "mime_type": "application/octet-stream"
+    }
+  ],
+  "headers": {
+    "Authentication-Results": "spf=fail dkim=fail dmarc=fail",
+    "Received-SPF": "fail"
+  }
+}

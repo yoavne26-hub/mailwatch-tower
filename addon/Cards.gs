@@ -5,36 +5,245 @@
 var LRM = '\u200E';
 var LARGE_DOT = '\u2B24';
 
-function buildAnalysisResultCard(response) {
-  response = response || {};
-  var verdict = response && response.verdict ? String(response.verdict) : 'Unknown';
-  var verdictColor = response.verdict_color || VERDICT_COLORS[verdict] || '#4A4A4A';
-  var score = typeof response.score === 'number' ? response.score : 0;
-  var rawScore = typeof response.raw_score === 'number' ? response.raw_score : score;
-  var categoryBreakdown = response.category_breakdown || {};
-  var signals = response.signals || [];
+function buildMainAnalysisCard(analysis, confirmationMessage) {
+  analysis = analysis || {};
+  var verdict = analysis.verdict || 'Unknown';
+  var verdictColor = VERDICT_COLORS[verdict] || '#4A4A4A';
+  var finalScore = valueOrZero_(analysis.final_score !== undefined ? analysis.final_score : analysis.score);
+  var baseScore = valueOrZero_(analysis.base_score !== undefined ? analysis.base_score : analysis.raw_score);
 
   var topSection = CardService.newCardSection()
-    .addWidget(CardService.newTextParagraph().setText(
-      '<b>' + ltrText(formatScore(score)) + '</b>'
-    ))
     .addWidget(CardService.newTextParagraph().setText(
       '<b>' + ltrText('Verdict: ') + coloredDot(verdictColor) + ' ' + ltrText(verdict) + '</b>'
     ))
     .addWidget(CardService.newTextParagraph().setText(
-      ltrText(buildDisplaySummary(verdict, categoryBreakdown, signals))
+      '<b>' + ltrText('Final score: ' + finalScore + ' out of 100') + '</b>'
+    ))
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText('Base score before feedback: ' + baseScore)
+    ))
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText(analysis.summary || 'Risk indicators were analyzed for the opened message.')
     ));
+
+  if (confirmationMessage) {
+    topSection.addWidget(CardService.newTextParagraph().setText(
+      '<b>' + ltrText(confirmationMessage) + '</b>'
+    ));
+  }
 
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
-      .setTitle('MailWatch Tower Analysis')
+      .setTitle(APP_NAME)
       .setSubtitle('Explainable email risk assessment'))
     .addSection(topSection)
-    .addSection(buildLegendSection())
-    .addSection(buildDetectedSignalsSection(signals))
-    .addSection(buildRecommendationsSection(response.recommendations || [], verdict))
-    .addSection(buildTechnicalBreakdownSection(categoryBreakdown, rawScore, score))
-    .addSection(buildLimitationsSection(response.limitations || []))
+    .addSection(buildCategorySummarySection(analysis))
+    .addSection(buildRecommendedActionsSection(analysis.recommended_actions || analysis.recommendations || []))
+    .addSection(buildAppliedAdjustmentsSection(analysis.applied_adjustments || []))
+    .addSection(buildMainControlsSection())
+    .build();
+}
+
+function buildAnalysisResultCard(response) {
+  return buildMainAnalysisCard(response);
+}
+
+function buildCategorySummarySection(analysis) {
+  var section = CardService.newCardSection().setHeader('Category scores');
+  var categories = analysis.categories || {};
+
+  CATEGORY_ORDER.forEach(function(categoryKey) {
+    var category = categories[categoryKey];
+    if (!category && categoryKey === 'user_feedback') {
+      return;
+    }
+    var label = category && category.title ? category.title : CATEGORY_LABELS[categoryKey];
+    var score = category ? valueOrZero_(category.score) : valueOrZero_((analysis.category_scores || {})[categoryKey]);
+    var maxScore = category ? valueOrZero_(category.max_score) : '';
+    var scoreText = maxScore !== '' ? score + ' out of ' + maxScore : String(score);
+
+    section.addWidget(CardService.newDecoratedText()
+      .setTopLabel(label)
+      .setText(ltrText(scoreText))
+      .setBottomLabel(category && category.short_summary ? truncateText(category.short_summary, 120) : ''));
+
+    section.addWidget(buildCategoryButton_(categoryKey));
+  });
+
+  return section;
+}
+
+function buildCategoryButton_(categoryKey) {
+  return CardService.newTextButton()
+    .setText(categoryButtonLabel_(categoryKey))
+    .setOnClickAction(CardService.newAction()
+      .setFunctionName('buildCategoryDrilldownCard')
+      .setParameters({ category_key: categoryKey }));
+}
+
+function categoryButtonLabel_(categoryKey) {
+  return {
+    sender_auth: 'Sender Advanced Details',
+    links: 'Link Advanced Details',
+    attachments: 'Attachment Advanced Details',
+    content: 'Content Advanced Details',
+    external_intel: 'External Intel Details',
+    user_feedback: 'Feedback Advanced Details',
+  }[categoryKey] || 'Advanced Details';
+}
+
+function buildCategoryCard(analysis, categoryKey) {
+  analysis = analysis || {};
+  var category = (analysis.categories || {})[categoryKey];
+  if (!category) {
+    return buildErrorCard('Details unavailable', 'The selected category was not returned by the backend.');
+  }
+
+  var section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText(
+      '<b>' + ltrText(category.title) + '</b>'
+    ))
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText('Score: ' + valueOrZero_(category.score) + ' out of ' + valueOrZero_(category.max_score))
+    ))
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText('Status: ' + titleCase(category.status || 'not_available'))
+    ))
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText(category.short_summary || 'No summary was provided for this category.')
+    ));
+
+  var checks = category.checks || [];
+  if (checks.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('No checks were returned for this category.')
+    ));
+  } else {
+    checks.forEach(function(check) {
+      section.addWidget(buildCheckWidget_(check));
+    });
+  }
+
+  var feedbackSection = buildFeedbackActionsSection(category.feedback_actions || [], analysis.message_fingerprint);
+
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader()
+      .setTitle(category.title)
+      .setSubtitle(APP_NAME))
+    .addSection(section)
+    .addSection(feedbackSection)
+    .addSection(buildDrilldownControlsSection())
+    .build();
+}
+
+function buildCheckWidget_(check) {
+  var points = valueOrZero_(check.points);
+  var title = check.name || 'Check';
+  var result = titleCase(check.result || 'not_available');
+  var text = '<b>' + ltrText(title) + '</b><br>' +
+    ltrText('Result: ' + result + ' | Points: +' + points) + '<br>' +
+    ltrText(check.explanation || 'No explanation provided.');
+  if (check.evidence_summary) {
+    text += '<br>' + ltrText('Evidence: ' + check.evidence_summary);
+  }
+  return CardService.newTextParagraph().setText(text);
+}
+
+function buildFeedbackActionsSection(actions, messageFingerprint) {
+  var section = CardService.newCardSection().setHeader('Feedback actions');
+  if (!actions || actions.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('No feedback actions are available for this category.')
+    ));
+    return section;
+  }
+
+  actions.slice(0, 8).forEach(function(action) {
+    section.addWidget(buildFeedbackButton_(action, messageFingerprint));
+  });
+
+  return section;
+}
+
+function buildFeedbackButton_(feedbackAction, messageFingerprint) {
+  var isTrusted = feedbackAction.action === 'mark_trusted';
+  var label = isTrusted ? 'trusted' : 'malicious';
+  var button = CardService.newTextButton()
+    .setText(feedbackAction.label)
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setBackgroundColor(isTrusted ? '#188038' : '#D93025')
+    .setOnClickAction(CardService.newAction()
+      .setFunctionName('submitFeedback')
+      .setParameters({
+        message_fingerprint: messageFingerprint || '',
+        indicator_type: feedbackAction.indicator_type || '',
+        indicator_value: feedbackAction.indicator_value || '',
+        label: label,
+        source_category: feedbackAction.source_category || '',
+      }));
+  return button;
+}
+
+function buildRecommendedActionsSection(recommendations) {
+  var section = CardService.newCardSection().setHeader('Recommended actions');
+  if (!recommendations || recommendations.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('No immediate action is required based on detected indicators.')
+    ));
+    return section;
+  }
+  recommendations.forEach(function(recommendation) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('- ' + recommendation)
+    ));
+  });
+  return section;
+}
+
+function buildAppliedAdjustmentsSection(adjustments) {
+  var section = CardService.newCardSection().setHeader('Applied adjustments');
+  if (!adjustments || adjustments.length === 0) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('No user feedback adjustments were applied.')
+    ));
+    return section;
+  }
+  adjustments.forEach(function(adjustment) {
+    var points = adjustment.points > 0 ? '+' + adjustment.points : String(adjustment.points);
+    section.addWidget(CardService.newTextParagraph().setText(
+      '<b>' + ltrText(points + ' | ' + titleCase(String(adjustment.type || '').replace(/_/g, ' '))) + '</b>'
+    ));
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText(adjustment.explanation || '')
+    ));
+  });
+  return section;
+}
+
+function buildMainControlsSection() {
+  return CardService.newCardSection()
+    .addWidget(CardService.newTextButton()
+      .setText('Refresh Analysis')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor('#0B3D91')
+      .setOnClickAction(CardService.newAction().setFunctionName('refreshAnalysisAction')));
+}
+
+function buildDrilldownControlsSection() {
+  return CardService.newCardSection()
+    .addWidget(CardService.newTextButton()
+      .setText('Back to Analysis')
+      .setOnClickAction(CardService.newAction().setFunctionName('backToMainCardAction')))
+    .addWidget(CardService.newTextButton()
+      .setText('Refresh Analysis')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setBackgroundColor('#0B3D91')
+      .setOnClickAction(CardService.newAction().setFunctionName('refreshAnalysisAction')));
+}
+
+function backToMainCardAction(e) {
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().popCard())
     .build();
 }
 
@@ -44,10 +253,10 @@ function buildErrorCard(message, details) {
       '<b>' + ltrText(message || 'Analysis unavailable') + '</b>'
     ))
     .addWidget(CardService.newTextParagraph().setText(
-      ltrText('MailWatch Tower could not reach the backend service.')
+      ltrText('MailWatch Tower could not complete the request.')
     ))
     .addWidget(CardService.newTextParagraph().setText(
-      ltrText('Check that BACKEND_BASE_URL in Config.gs points to a public HTTPS backend URL.')
+      ltrText('Check BACKEND_BASE_URL / tunnel URL and backend /health.')
     ));
 
   if (details) {
@@ -58,6 +267,12 @@ function buildErrorCard(message, details) {
       ltrText(truncateText(details, 600))
     ));
   }
+
+  section.addWidget(CardService.newTextButton()
+    .setText('Retry Analysis')
+    .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+    .setBackgroundColor('#0B3D91')
+    .setOnClickAction(CardService.newAction().setFunctionName('buildRetryAnalysisAction')));
 
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
@@ -70,14 +285,14 @@ function buildErrorCard(message, details) {
 function buildHealthCard(healthResponse) {
   var status = healthResponse && healthResponse.status ? String(healthResponse.status).toUpperCase() : 'UNKNOWN';
   var service = healthResponse && healthResponse.service ? healthResponse.service : 'Backend service';
+  var version = healthResponse && healthResponse.version ? healthResponse.version : 'unknown';
   var statusColor = status === 'OK' ? '#188038' : '#4A4A4A';
   var section = CardService.newCardSection()
     .addWidget(CardService.newTextParagraph().setText(
       '<b>' + ltrText('Backend status: ') + coloredDot(statusColor) + ' ' + ltrText(status) + '</b>'
     ))
-    .addWidget(CardService.newTextParagraph().setText(
-      ltrText('Service: ' + service)
-    ));
+    .addWidget(CardService.newTextParagraph().setText(ltrText('Service: ' + service)))
+    .addWidget(CardService.newTextParagraph().setText(ltrText('Version: ' + version)));
 
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
@@ -93,211 +308,12 @@ function buildLegendSection() {
     .addWidget(CardService.newTextParagraph().setText(
       ltrText('Signal colors show what type of risk was detected.')
     ));
-  var orderedCategories = ['sender', 'links', 'attachments', 'content', 'headers', 'metadata'];
-
-  orderedCategories.forEach(function(category) {
+  CATEGORY_ORDER.forEach(function(categoryKey) {
     section.addWidget(CardService.newTextParagraph().setText(
-      coloredDot(CATEGORY_COLORS[category]) + ' ' + ltrText(CATEGORY_LABELS[category])
+      coloredDot(CATEGORY_COLORS[categoryKey]) + ' ' + ltrText(CATEGORY_LABELS[categoryKey])
     ));
   });
-
   return section;
-}
-
-function buildDetectedSignalsSection(signals) {
-  var section = CardService.newCardSection().setHeader('Detected signals');
-  if (!signals || signals.length === 0) {
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText('No major malicious-email indicators were detected in this message.')
-    ));
-    return section;
-  }
-
-  var maxSignals = 12;
-  signals.slice(0, maxSignals).forEach(function(signal) {
-    section.addWidget(CardService.newTextParagraph().setText(
-      coloredDot(signal.category_color) + ' <b>' + ltrText(formatSignalTitle(signal)) + '</b>'
-    ));
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText(formatSignalMeta(signal))
-    ));
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText(truncateText(signal.explanation, 280))
-    ));
-  });
-
-  if (signals.length > maxSignals) {
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText('Showing top detected signals.')
-    ));
-  }
-
-  return section;
-}
-
-function buildRecommendationsSection(recommendations, verdict) {
-  var section = CardService.newCardSection().setHeader('Recommended actions');
-  var displayRecommendations = polishedRecommendations(recommendations, verdict);
-
-  displayRecommendations.forEach(function(recommendation) {
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText('- ' + recommendation)
-    ));
-  });
-
-  return section;
-}
-
-function buildTechnicalBreakdownSection(categoryBreakdown, rawScore, score) {
-  var section = CardService.newCardSection().setHeader('Technical breakdown');
-  var orderedCategories = ['sender', 'links', 'attachments', 'content', 'headers', 'metadata'];
-
-  orderedCategories.forEach(function(category) {
-    var label = CATEGORY_LABELS[category];
-    var points = categoryBreakdown && categoryBreakdown[category] ? categoryBreakdown[category] : 0;
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText(formatBreakdownLine(label, points))
-    ));
-  });
-
-  section.addWidget(CardService.newTextParagraph().setText(
-    ltrText(formatBreakdownLine('Raw score', rawScore))
-  ));
-  section.addWidget(CardService.newTextParagraph().setText(
-    ltrText(formatFinalScore(score))
-  ));
-
-  return section;
-}
-
-function buildLimitationsSection(limitations) {
-  var section = CardService.newCardSection().setHeader('Analysis limitations');
-  var displayedLimitations = [
-    'MailWatch Tower does not open attachments or visit links.',
-    'The score is based on detected risk indicators, not definitive malware confirmation.',
-    'Legitimate messages can still contain suspicious-looking patterns.',
-  ];
-
-  (limitations || []).forEach(function(limitation) {
-    if (isUsefulBackendLimitation(limitation, displayedLimitations)) {
-      displayedLimitations.push(limitation);
-    }
-  });
-
-  displayedLimitations.forEach(function(limitation) {
-    section.addWidget(CardService.newTextParagraph().setText(
-      ltrText('- ' + limitation)
-    ));
-  });
-
-  return section;
-}
-
-function isUsefulBackendLimitation(limitation, displayedLimitations) {
-  if (!limitation || displayedLimitations.indexOf(limitation) !== -1) {
-    return false;
-  }
-  var normalized = String(limitation).toLowerCase();
-  if (normalized.indexOf('the score is based on risk indicators') === 0) {
-    return false;
-  }
-  return true;
-}
-
-function buildDisplaySummary(verdict, categoryBreakdown, signals) {
-  var detectedCategories = detectedCategoryLabels(categoryBreakdown, signals);
-  if (verdict === 'Safe') {
-    return 'No major malicious-email indicators were detected in this message.';
-  }
-  if (verdict === 'Dangerous') {
-    return 'This message was marked as Dangerous because multiple high-risk indicators were found across ' +
-      joinReadableList(detectedCategories) + '.';
-  }
-  if (detectedCategories.length > 0) {
-    return 'This message was marked as ' + verdict + ' because risk indicators were found across ' +
-      joinReadableList(detectedCategories) + '.';
-  }
-  return 'This message was marked as ' + verdict + ' based on detected risk indicators. Review before taking action.';
-}
-
-function detectedCategoryLabels(categoryBreakdown, signals) {
-  var orderedCategories = ['sender', 'links', 'attachments', 'content', 'headers', 'metadata'];
-  var labels = [];
-  orderedCategories.forEach(function(category) {
-    var hasBreakdownPoints = categoryBreakdown && categoryBreakdown[category] > 0;
-    var hasSignal = (signals || []).some(function(signal) {
-      return signal.category === category;
-    });
-    if (hasBreakdownPoints || hasSignal) {
-      labels.push(CATEGORY_LABELS[category]);
-    }
-  });
-  return labels;
-}
-
-function polishedRecommendations(recommendations, verdict) {
-  if (verdict === 'Dangerous' || verdict === 'High Risk') {
-    return [
-      'Do not click links or open attachments.',
-      'Verify the request through a separate trusted channel.',
-      'Report the message using your organization\'s phishing reporting process.',
-    ];
-  }
-  if (verdict === 'Suspicious') {
-    return [
-      'Review the highlighted indicators before taking action.',
-      'Verify the sender through a trusted channel.',
-      'Avoid clicking links unless the request is expected.',
-    ];
-  }
-  if (verdict === 'Safe' || verdict === 'Low Risk') {
-    return [
-      'No immediate action is required based on detected indicators.',
-      'Continue to verify unexpected requests through normal channels.',
-    ];
-  }
-  return (recommendations && recommendations.length) ? recommendations : [
-    'Review the highlighted indicators before taking action.',
-  ];
-}
-
-function joinReadableList(values) {
-  if (!values || values.length === 0) {
-    return 'the analyzed message fields';
-  }
-  if (values.length === 1) {
-    return values[0];
-  }
-  if (values.length === 2) {
-    return values[0] + ' and ' + values[1];
-  }
-  return values.slice(0, -1).join(', ') + ', and ' + values[values.length - 1];
-}
-
-function ltrText(value) {
-  return LRM + safeText(value) + LRM;
-}
-
-function formatScore(score) {
-  return 'Score: ' + numericText(score) + ' out of 100';
-}
-
-function formatFinalScore(score) {
-  return 'Final score: ' + numericText(score) + ' out of 100';
-}
-
-function formatSignalTitle(signal) {
-  return signal && signal.name ? signal.name : 'Detected signal';
-}
-
-function formatSignalMeta(signal) {
-  var points = signal && signal.points !== undefined ? signal.points : 0;
-  var severity = signal && signal.severity ? titleCase(signal.severity) : 'Unknown';
-  return 'Points: +' + numericText(points) + ' | Severity: ' + severity;
-}
-
-function formatBreakdownLine(label, value) {
-  return label + ': ' + numericText(value);
 }
 
 function coloredDot(hexColor) {
@@ -305,16 +321,8 @@ function coloredDot(hexColor) {
   return LRM + '<font color="' + color + '"><b>' + LARGE_DOT + '</b></font>' + LRM;
 }
 
-function titleCase(value) {
-  var text = String(value || '').toLowerCase();
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function numericText(value) {
-  if (value === null || value === undefined || value === '') {
-    return '0';
-  }
-  return String(value);
+function ltrText(value) {
+  return LRM + safeText(value) + LRM;
 }
 
 function safeText(value) {
@@ -334,4 +342,16 @@ function truncateText(value, maxLength) {
     return text;
   }
   return text.slice(0, Math.max(0, limit - 3)) + '...';
+}
+
+function titleCase(value) {
+  return String(value || '')
+    .split(/[\s_]+/)
+    .filter(function(part) { return part.length > 0; })
+    .map(function(part) { return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase(); })
+    .join(' ');
+}
+
+function valueOrZero_(value) {
+  return value === null || value === undefined || value === '' ? 0 : value;
 }

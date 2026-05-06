@@ -1,0 +1,15 @@
+{
+  "message_id": "demo-safe-001",
+  "sender_email": "maya.cohen@university.edu",
+  "sender_display_name": "Maya Cohen",
+  "from_header": "Maya Cohen <maya.cohen@university.edu>",
+  "reply_to": "maya.cohen@university.edu",
+  "return_path": "maya.cohen@university.edu",
+  "subject": "Project meeting notes",
+  "body_text": "Hi team, thanks for joining the project meeting. The notes are available in the course portal.",
+  "urls": [],
+  "attachments": [],
+  "headers": {
+    "Authentication-Results": "spf=pass dkim=pass dmarc=pass"
+  }
+}
