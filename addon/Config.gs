@@ -1,7 +1,7 @@
 var APP_NAME = 'MailWatch Tower';
 var BACKEND_BASE_URL_PROPERTY = 'BACKEND_BASE_URL';
 var ADDON_SHARED_SECRET_PROPERTY = 'ADDON_SHARED_SECRET';
-var FALLBACK_BACKEND_BASE_URL = 'https://beast-advocate-simple-local.trycloudflare.com';
+var FALLBACK_BACKEND_BASE_URL = 'https://mailwatch-tower.onrender.com';
 var API_TIMEOUT_MS = 15000;
 var MAX_BODY_CHARS = 20000;
 var MAX_URLS = 30;
