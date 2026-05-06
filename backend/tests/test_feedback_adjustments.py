@@ -120,3 +120,25 @@ def test_trusted_exact_url_recalculates_links_score(tmp_path) -> None:
         check.points == 0 and "trusted by the user" in check.explanation
         for check in adjusted.categories["links"].checks
     )
+
+
+def test_trusted_link_domain_matches_www_variant_and_recalculates_links_score(tmp_path) -> None:
+    service = service_for(tmp_path)
+    request = AnalyzeRequest(
+        sender_email="sender@example.com",
+        subject="Account security",
+        body_text="Login at https://www.youtube.com/watch?v=abc123",
+        urls=[{"url": "https://www.youtube.com/watch?v=abc123", "surrounding_text": "login security"}],
+    )
+    baseline = analyze_email(request, feedback_service=service)
+    save(service, "link_domain", "youtube.com", "trusted", "links")
+
+    adjusted = analyze_email(request, feedback_service=service)
+
+    assert baseline.categories["links"].score > 0
+    assert adjusted.categories["links"].score < baseline.categories["links"].score
+    assert adjusted.category_scores["links"] == adjusted.categories["links"].score
+    assert any(
+        check.points == 0 and "trusted by the user" in check.explanation
+        for check in adjusted.categories["links"].checks
+    )

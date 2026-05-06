@@ -171,11 +171,19 @@ def _apply_safe_browsing_trust_conflicts(
     if "external_intel" not in categories:
         return
     trusted_values = {(match.indicator_type, match.indicator_value) for match in trusted_matches}
+    trusted_domains = {
+        match.indicator_value
+        for match in trusted_matches
+        if match.indicator_type == "link_domain"
+    }
     for check in categories["external_intel"].checks:
         if check.name != "Safe Browsing match" or not check.indicator_value:
             continue
         normalized_url = normalize_indicator("url", check.indicator_value)
-        if ("url", normalized_url) in trusted_values:
+        normalized_domain = domain_for_url_indicator(check.indicator_value)
+        if ("url", normalized_url) in trusted_values or (
+            normalized_domain is not None and normalized_domain in trusted_domains
+        ):
             adjustments.append(
                 AppliedAdjustment(
                     type="trusted_indicator_overridden_by_external_intel",

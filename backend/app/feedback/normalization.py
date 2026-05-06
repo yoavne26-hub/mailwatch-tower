@@ -14,8 +14,10 @@ def normalize_indicator(indicator_type: IndicatorType, value: str) -> str:
     if indicator_type == "sender_email":
         parsed = parse_email_field(raw_value)
         return (parsed.address or raw_value).lower()
-    if indicator_type in {"sender_domain", "reply_to_domain", "link_domain"}:
+    if indicator_type in {"sender_domain", "reply_to_domain"}:
         return normalize_domain(raw_value) or raw_value.lower()
+    if indicator_type == "link_domain":
+        return normalize_link_domain(raw_value) or raw_value.lower()
     if indicator_type == "url":
         return normalize_url_for_feedback(raw_value)
     if indicator_type in {"attachment_extension", "attachment_filename_pattern"}:
@@ -42,4 +44,33 @@ def indicator_hash(normalized_value: str) -> str:
 
 def domain_for_url_indicator(value: str) -> str | None:
     """Return normalized domain for a URL indicator."""
-    return hostname_for_url(value)
+    return normalize_link_domain(hostname_for_url(value) or value)
+
+
+def normalize_link_domain(value: str | None) -> str | None:
+    """Normalize a link domain for user feedback matching."""
+    if not value:
+        return None
+    raw_value = value.strip().lower().strip("<>[]()")
+    if not raw_value:
+        return None
+
+    if "://" in raw_value:
+        try:
+            parsed = urlsplit(raw_value)
+        except ValueError:
+            host = raw_value
+        else:
+            host = parsed.hostname or parsed.netloc
+    else:
+        host = raw_value.split("/", 1)[0].split("?", 1)[0].split("#", 1)[0]
+
+    if "@" in host:
+        host = host.rsplit("@", 1)[-1]
+    if ":" in host and host.count(":") <= 1:
+        host = host.split(":", 1)[0]
+
+    host = host.strip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    return host or None

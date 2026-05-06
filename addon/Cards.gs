@@ -187,7 +187,7 @@ function buildCheckWidget_(check) {
 
 function buildFeedbackActionsSection(actions, messageFingerprint, categoryKey, pendingFeedback) {
   var section = CardService.newCardSection().setHeader('Feedback actions');
-  var displayActions = dedupeFeedbackActions_(actions || []);
+  var displayActions = dedupeFeedbackActions_(filterFeedbackActionsForCategory_(actions || [], categoryKey));
   if (displayActions.length === 0) {
     section.addWidget(CardService.newTextParagraph().setText(
       ltrText('No feedback actions are available for this category.')
@@ -264,6 +264,15 @@ function dedupeFeedbackActions_(actions) {
     }
   });
   return deduped;
+}
+
+function filterFeedbackActionsForCategory_(actions, categoryKey) {
+  if (categoryKey !== 'links') {
+    return actions;
+  }
+  return actions.filter(function(action) {
+    return action.indicator_type === 'link_domain';
+  });
 }
 
 function feedbackButtonLabel_(action) {

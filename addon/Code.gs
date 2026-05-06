@@ -384,7 +384,6 @@ function pendingFeedbackActionKey_(feedbackAction) {
     cleanString_(feedbackAction.action),
     cleanString_(feedbackAction.indicator_type),
     normalizePendingIndicatorValue_(feedbackAction.indicator_type, feedbackAction.indicator_value),
-    canonicalFeedbackLabel_(feedbackAction),
     cleanString_(feedbackAction.source_category),
   ].join('|');
 }
@@ -414,14 +413,6 @@ function normalizePendingIndicatorValue_(indicatorType, value) {
     return normalized.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
   }
   return normalized.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-}
-
-function canonicalFeedbackLabel_(feedbackAction) {
-  var label = cleanString_(feedbackAction.label);
-  if (label) {
-    return label;
-  }
-  return feedbackAction.action === 'mark_trusted' ? 'trusted' : 'malicious';
 }
 
 function getActionParameters_(e) {

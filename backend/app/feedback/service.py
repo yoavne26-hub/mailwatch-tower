@@ -1,6 +1,7 @@
 """Feedback service for saving and matching trusted/malicious indicators."""
 
 from app.config import get_settings
+from app.feedback.normalization import normalize_link_domain
 from app.feedback.repository import FeedbackIndicator, FeedbackRepository, default_repository
 from app.models import AnalyzeRequest, FeedbackRequest, FeedbackResponse, IndicatorType
 from app.utils.email_parsing import normalize_domain, parse_email_field
@@ -54,14 +55,14 @@ def extract_indicators(request: AnalyzeRequest) -> list[tuple[IndicatorType, str
         if url_input.url:
             normalized_url = normalize_url_for_analysis(url_input.url)
             indicators.append(("url", normalized_url))
-            domain = hostname_for_url(normalized_url)
+            domain = normalize_link_domain(hostname_for_url(normalized_url))
             if domain:
                 indicators.append(("link_domain", domain))
 
     for extracted_url in extract_urls_from_text(request.body_text):
         normalized_url = normalize_url_for_analysis(extracted_url)
         indicators.append(("url", normalized_url))
-        domain = hostname_for_url(normalized_url)
+        domain = normalize_link_domain(hostname_for_url(normalized_url))
         if domain:
             indicators.append(("link_domain", domain))
 
@@ -76,7 +77,12 @@ def extract_indicators(request: AnalyzeRequest) -> list[tuple[IndicatorType, str
     deduped: list[tuple[IndicatorType, str]] = []
     seen: set[tuple[str, str]] = set()
     for indicator_type, value in indicators:
-        normalized_value = normalize_domain(value) if indicator_type.endswith("domain") else value
+        if indicator_type == "link_domain":
+            normalized_value = normalize_link_domain(value)
+        elif indicator_type.endswith("domain"):
+            normalized_value = normalize_domain(value)
+        else:
+            normalized_value = value
         if not normalized_value:
             continue
         key = (indicator_type, normalized_value)

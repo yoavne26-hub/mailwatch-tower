@@ -2,6 +2,7 @@
 
 from app.analyzers.common import build_category
 from app.config import get_settings
+from app.feedback.normalization import normalize_link_domain
 from app.models import AnalyzeRequest, CategoryDetail, Check, FeedbackAction, UrlInput
 from app.scoring.config import CATEGORY_TITLES, SUSPICIOUS_TLDS, URL_SHORTENERS
 from app.utils.email_parsing import parse_email_field
@@ -41,6 +42,7 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
     for url_input in url_inputs:
         normalized_url = normalize_url_for_analysis(url_input.url)
         host = hostname_for_url(normalized_url)
+        feedback_domain = normalize_link_domain(host)
         link_domain = registrable_like_domain(host)
         if not normalized_url or not host:
             checks.append(
@@ -54,7 +56,8 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
             )
             continue
 
-        _add_url_action_pairs(actions, normalized_url, host)
+        if feedback_domain:
+            _add_domain_action_pairs(actions, feedback_domain)
         if normalized_url.lower().startswith("http://"):
             _append_unique(
                 checks,
@@ -94,7 +97,7 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
                     explanation="The message uses a URL shortener, which hides the final destination from the user.",
                     evidence_summary=f"Shortener domain: {host}",
                     indicator_type="link_domain",
-                    indicator_value=host,
+                    indicator_value=feedback_domain or host,
                 ),
             )
         if any(part.startswith("xn--") for part in host.split(".")):
@@ -108,7 +111,7 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
                     explanation="The URL contains a punycode domain, which can be used to disguise lookalike domains.",
                     evidence_summary=f"URL domain: {host}",
                     indicator_type="link_domain",
-                    indicator_value=host,
+                    indicator_value=feedback_domain or host,
                 ),
             )
         if tld_for_hostname(host) in SUSPICIOUS_TLDS:
@@ -122,7 +125,7 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
                     explanation="The URL uses a top-level domain commonly seen in risky campaigns.",
                     evidence_summary=f"URL domain: {host}",
                     indicator_type="link_domain",
-                    indicator_value=host,
+                    indicator_value=feedback_domain or host,
                 ),
             )
         if sender_comparison_domain and link_domain and link_domain != sender_comparison_domain:
@@ -136,7 +139,7 @@ def analyze_urls(request: AnalyzeRequest) -> CategoryDetail:
                     explanation="A link points to a domain different from the sender domain, which may indicate a redirected or third-party destination.",
                     evidence_summary=f"Sender domain: {sender_comparison_domain}; link domain: {link_domain}",
                     indicator_type="link_domain",
-                    indicator_value=host,
+                    indicator_value=feedback_domain or host,
                 ),
             )
         if _keyword_near_url(url_input, request):
@@ -188,12 +191,9 @@ def _append_unique(checks: list[Check], seen: set[tuple[str, str]], check: Check
         seen.add(key)
 
 
-def _add_url_action_pairs(actions: list[FeedbackAction], url: str, domain: str) -> None:
-    display_value = _display_value_for_url(url, domain)
+def _add_domain_action_pairs(actions: list[FeedbackAction], domain: str) -> None:
     actions.extend(
         [
-            FeedbackAction(label=f"Trust URL: {display_value}", action="mark_trusted", indicator_type="url", indicator_value=url, source_category="links"),
-            FeedbackAction(label=f"Mark URL malicious: {display_value}", action="mark_malicious", indicator_type="url", indicator_value=url, source_category="links"),
             FeedbackAction(label=f"Trust domain: {domain}", action="mark_trusted", indicator_type="link_domain", indicator_value=domain, source_category="links"),
             FeedbackAction(label=f"Mark domain malicious: {domain}", action="mark_malicious", indicator_type="link_domain", indicator_value=domain, source_category="links"),
         ]
@@ -205,7 +205,3 @@ def _dedupe_actions(actions: list[FeedbackAction]) -> list[FeedbackAction]:
     for action in actions:
         unique.setdefault((action.action, action.indicator_type, action.indicator_value.lower()), action)
     return list(unique.values())[:12]
-
-
-def _display_value_for_url(url: str, domain: str) -> str:
-    return domain or url[:60]

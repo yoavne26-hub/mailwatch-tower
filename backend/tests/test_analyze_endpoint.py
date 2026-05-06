@@ -94,4 +94,41 @@ def test_link_feedback_actions_are_unique_and_target_specific(monkeypatch, tmp_p
     assert len(actions) == len(keys)
     assert any(action["label"] == "Trust domain: upwind.io" for action in actions)
     assert any(action["label"] == "Mark domain malicious: upwind.io" for action in actions)
+    assert not any(action["indicator_type"] == "url" for action in actions)
     assert all("this domain" not in action["label"].lower() for action in actions)
+
+
+def test_link_feedback_actions_are_domain_first_for_repeated_url_paths(monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'feedback.db'}")
+    client = TestClient(app)
+    payload = {
+        "sender_email": "sender@example.com",
+        "subject": "Job updates",
+        "body_text": "Review https://drushim.co.il/a and https://drushim.co.il/b and https://www.drushim.co.il/c",
+        "urls": [
+            {"url": "https://drushim.co.il/a"},
+            {"url": "https://drushim.co.il/b"},
+            {"url": "https://www.drushim.co.il/c"},
+        ],
+    }
+
+    response = client.post("/analyze", json=payload)
+    actions = response.json()["categories"]["links"]["feedback_actions"]
+
+    assert response.status_code == 200
+    assert actions == [
+        {
+            "label": "Trust domain: drushim.co.il",
+            "action": "mark_trusted",
+            "indicator_type": "link_domain",
+            "indicator_value": "drushim.co.il",
+            "source_category": "links",
+        },
+        {
+            "label": "Mark domain malicious: drushim.co.il",
+            "action": "mark_malicious",
+            "indicator_type": "link_domain",
+            "indicator_value": "drushim.co.il",
+            "source_category": "links",
+        },
+    ]

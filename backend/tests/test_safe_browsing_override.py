@@ -43,3 +43,25 @@ def test_safe_browsing_wins_over_trusted_url(tmp_path) -> None:
     assert result.categories["external_intel"].score == 50
     assert result.categories["links"].score == 0
     assert any(item.type == "trusted_indicator_overridden_by_external_intel" for item in result.applied_adjustments)
+
+
+def test_safe_browsing_wins_over_trusted_link_domain(tmp_path) -> None:
+    service = FeedbackService(FeedbackRepository(f"sqlite:///{tmp_path / 'feedback.db'}"))
+    service.save_feedback(
+        FeedbackRequest(
+            indicator_type="link_domain",
+            indicator_value="bad.example",
+            label="trusted",
+            source_category="links",
+        )
+    )
+
+    result = analyze_email(
+        AnalyzeRequest(urls=[{"url": "http://www.bad.example/login", "surrounding_text": "login"}]),
+        feedback_service=service,
+        safe_browsing_client=FakeSafeBrowsingMatch(),
+    )
+
+    assert result.categories["external_intel"].score == 50
+    assert result.categories["links"].score == 0
+    assert any(item.type == "trusted_indicator_overridden_by_external_intel" for item in result.applied_adjustments)

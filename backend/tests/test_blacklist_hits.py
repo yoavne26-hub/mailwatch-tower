@@ -66,3 +66,30 @@ def test_malicious_domain_is_not_suppressed_by_trusted_url(tmp_path) -> None:
 
     assert result.category_scores["user_feedback"] == 50
     assert any(item.type == "malicious_feedback_match" for item in result.applied_adjustments)
+
+
+def test_malicious_link_domain_matches_www_variant(tmp_path) -> None:
+    service = FeedbackService(FeedbackRepository(f"sqlite:///{tmp_path / 'feedback.db'}"))
+    service.save_feedback(
+        FeedbackRequest(
+            indicator_type="link_domain",
+            indicator_value="bad.example",
+            label="malicious",
+            source_category="links",
+        )
+    )
+
+    result = analyze_email(
+        AnalyzeRequest(
+            sender_email="sender@example.com",
+            body_text="Login at http://www.bad.example/login",
+            urls=[{"url": "http://www.bad.example/login", "surrounding_text": "login"}],
+        ),
+        feedback_service=service,
+    )
+
+    assert result.category_scores["user_feedback"] == 50
+    assert any(
+        check.indicator_type == "link_domain" and check.indicator_value == "bad.example"
+        for check in result.categories["user_feedback"].checks
+    )

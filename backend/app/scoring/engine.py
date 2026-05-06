@@ -142,7 +142,7 @@ def _category_color(category: str) -> str:
         "links": "#0B3D91",
         "attachments": "#E91E63",
         "content": "#000000",
-        "external_intel": "#6A1B9A",
+        "external_intel": "#4A4A4A",
         "user_feedback": "#4A4A4A",
     }.get(category, "#4A4A4A")
 
