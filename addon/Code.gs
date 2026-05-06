@@ -51,16 +51,29 @@ function analyzeCurrentMessage(e) {
 }
 
 function refreshAnalysisAction(e) {
+  var applyingFeedback = false;
+  var feedbackSubmitted = false;
   try {
     var payload = extractCurrentMessagePayload(e);
+    var pendingFeedback = loadPendingFeedback_(payload.message_fingerprint);
+    if (pendingFeedback.length > 0) {
+      applyingFeedback = true;
+      submitPendingFeedbackActions_(pendingFeedback, payload.message_fingerprint);
+      feedbackSubmitted = true;
+      clearPendingFeedback_(payload.message_fingerprint);
+    }
+
     var analysis = analyzeEmail(payload);
     cacheAnalysis_(analysis);
+    var confirmation = feedbackSubmitted ? 'Feedback applied. Analysis refreshed.' : 'Analysis refreshed.';
     return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().updateCard(buildMainAnalysisCard(analysis, 'Analysis refreshed.')))
+      .setNavigation(CardService.newNavigation().updateCard(buildMainAnalysisCard(analysis, confirmation)))
       .build();
   } catch (error) {
+    var message = feedbackSubmitted ? 'Feedback was saved, but analysis refresh failed.' :
+      (applyingFeedback ? 'Could not apply feedback.' : 'Refresh failed');
     return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().pushCard(buildErrorCard('Refresh failed', friendlyError_(error))))
+      .setNavigation(CardService.newNavigation().pushCard(buildErrorCard(message, friendlyError_(error))))
       .build();
   }
 }
@@ -86,26 +99,45 @@ function submitFeedback(e) {
   try {
     var parameters = getActionParameters_(e);
     var payload = extractCurrentMessagePayload(e);
+    var messageFingerprint = parameters.message_fingerprint || payload.message_fingerprint;
+    var categoryKey = parameters.category_key || parameters.source_category || '';
     var feedbackPayload = {
-      message_fingerprint: parameters.message_fingerprint || payload.message_fingerprint,
+      action: parameters.action,
+      message_fingerprint: messageFingerprint,
       indicator_type: parameters.indicator_type,
       indicator_value: parameters.indicator_value,
       label: parameters.label,
       source_category: parameters.source_category,
     };
 
-    submitFeedbackToBackend(feedbackPayload);
-    var refreshed = analyzeEmail(payload);
-    cacheAnalysis_(refreshed);
+    togglePendingFeedback_(messageFingerprint, feedbackPayload);
+    var cachedAnalysis = getCachedAnalysis_(messageFingerprint);
+    if (!cachedAnalysis) {
+      throw new Error('The analysis details cache expired. Press Refresh Analysis, then open the category again.');
+    }
 
     return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().updateCard(buildMainAnalysisCard(refreshed, 'Feedback saved. Analysis refreshed.')))
+      .setNavigation(CardService.newNavigation().updateCard(
+        buildCategoryCard(cachedAnalysis, categoryKey, 'Feedback selection updated. Press Refresh Analysis to apply it.')
+      ))
       .build();
   } catch (error) {
     return CardService.newActionResponseBuilder()
-      .setNavigation(CardService.newNavigation().pushCard(buildErrorCard('Feedback was not saved', friendlyError_(error))))
+      .setNavigation(CardService.newNavigation().pushCard(buildErrorCard('Feedback selection failed', friendlyError_(error))))
       .build();
   }
+}
+
+function submitPendingFeedbackActions_(pendingFeedback, messageFingerprint) {
+  pendingFeedback.forEach(function(action) {
+    submitFeedbackToBackend({
+      message_fingerprint: action.message_fingerprint || messageFingerprint,
+      indicator_type: action.indicator_type || '',
+      indicator_value: action.indicator_value || '',
+      label: action.label || '',
+      source_category: action.source_category || '',
+    });
+  });
 }
 
 function buildRetryAnalysisAction(e) {
@@ -265,12 +297,131 @@ function getCachedAnalysis_(messageFingerprint) {
   if (!messageFingerprint) {
     return null;
   }
-  var cached = CacheService.getUserCache().get(cacheKey_(messageFingerprint));
-  return cached ? JSON.parse(cached) : null;
+  try {
+    var cached = CacheService.getUserCache().get(cacheKey_(messageFingerprint));
+    return cached ? JSON.parse(cached) : null;
+  } catch (error) {
+    Logger.log('Could not read cached analysis: ' + sanitizeLogText_(error.message || error));
+    return null;
+  }
 }
 
 function cacheKey_(messageFingerprint) {
   return 'analysis:' + messageFingerprint;
+}
+
+function pendingFeedbackKey_(messageFingerprint) {
+  return 'pending-feedback:' + messageFingerprint;
+}
+
+function loadPendingFeedback_(messageFingerprint) {
+  if (!messageFingerprint) {
+    return [];
+  }
+  try {
+    var cached = CacheService.getUserCache().get(pendingFeedbackKey_(messageFingerprint));
+    var parsed = cached ? JSON.parse(cached) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    Logger.log('Could not read pending feedback state: ' + sanitizeLogText_(error.message || error));
+    return [];
+  }
+}
+
+function savePendingFeedback_(messageFingerprint, pendingFeedback) {
+  if (!messageFingerprint) {
+    return;
+  }
+  CacheService.getUserCache().put(
+    pendingFeedbackKey_(messageFingerprint),
+    JSON.stringify(pendingFeedback || []),
+    PENDING_FEEDBACK_CACHE_SECONDS
+  );
+}
+
+function clearPendingFeedback_(messageFingerprint) {
+  if (!messageFingerprint) {
+    return;
+  }
+  CacheService.getUserCache().remove(pendingFeedbackKey_(messageFingerprint));
+}
+
+function togglePendingFeedback_(messageFingerprint, feedbackAction) {
+  var pendingFeedback = loadPendingFeedback_(messageFingerprint);
+  var selectedKey = pendingFeedbackActionKey_(feedbackAction);
+  var conflictKey = pendingFeedbackConflictKey_(feedbackAction);
+  var alreadySelected = false;
+  var nextPending = [];
+
+  pendingFeedback.forEach(function(existingAction) {
+    if (pendingFeedbackActionKey_(existingAction) === selectedKey) {
+      alreadySelected = true;
+      return;
+    }
+    if (pendingFeedbackConflictKey_(existingAction) === conflictKey) {
+      return;
+    }
+    nextPending.push(existingAction);
+  });
+
+  if (!alreadySelected) {
+    nextPending.push({
+      action: cleanString_(feedbackAction.action),
+      message_fingerprint: messageFingerprint,
+      indicator_type: cleanString_(feedbackAction.indicator_type),
+      indicator_value: cleanString_(feedbackAction.indicator_value),
+      label: cleanString_(feedbackAction.label),
+      source_category: cleanString_(feedbackAction.source_category),
+    });
+  }
+
+  savePendingFeedback_(messageFingerprint, nextPending);
+  return nextPending;
+}
+
+function pendingFeedbackActionKey_(feedbackAction) {
+  return [
+    cleanString_(feedbackAction.action),
+    cleanString_(feedbackAction.indicator_type),
+    normalizePendingIndicatorValue_(feedbackAction.indicator_type, feedbackAction.indicator_value),
+    canonicalFeedbackLabel_(feedbackAction),
+    cleanString_(feedbackAction.source_category),
+  ].join('|');
+}
+
+function pendingFeedbackConflictKey_(feedbackAction) {
+  return [
+    cleanString_(feedbackAction.indicator_type),
+    normalizePendingIndicatorValue_(feedbackAction.indicator_type, feedbackAction.indicator_value),
+    cleanString_(feedbackAction.source_category),
+  ].join('|');
+}
+
+function isFeedbackPending_(pendingFeedback, feedbackAction) {
+  var selectedKey = pendingFeedbackActionKey_(feedbackAction);
+  return (pendingFeedback || []).some(function(existingAction) {
+    return pendingFeedbackActionKey_(existingAction) === selectedKey;
+  });
+}
+
+function normalizePendingIndicatorValue_(indicatorType, value) {
+  var type = cleanString_(indicatorType);
+  var normalized = cleanString_(value).toLowerCase();
+  if (type === 'url') {
+    return normalized.split('#')[0].split('?')[0].replace(/\/+$/, '');
+  }
+  if (type === 'link_domain' || type === 'sender_domain' || type === 'reply_to_domain') {
+    return normalized.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
+  }
+  return normalized.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+}
+
+function canonicalFeedbackLabel_(feedbackAction) {
+  var label = cleanString_(feedbackAction.label);
+  if (label) {
+    return label;
+  }
+  return feedbackAction.action === 'mark_trusted' ? 'trusted' : 'malicious';
 }
 
 function getActionParameters_(e) {

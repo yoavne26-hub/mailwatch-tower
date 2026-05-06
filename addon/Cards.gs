@@ -100,7 +100,7 @@ function categoryButtonLabel_(categoryKey) {
   }[categoryKey] || 'Advanced Details';
 }
 
-function buildCategoryCard(analysis, categoryKey) {
+function buildCategoryCard(analysis, categoryKey, noticeMessage) {
   analysis = analysis || {};
   var category = (analysis.categories || {})[categoryKey];
   if (!category) {
@@ -121,6 +121,12 @@ function buildCategoryCard(analysis, categoryKey) {
       ltrText(category.short_summary || 'No summary was provided for this category.')
     ));
 
+  if (noticeMessage) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      '<b>' + ltrText(noticeMessage) + '</b>'
+    ));
+  }
+
   var checks = category.checks || [];
   if (checks.length === 0) {
     section.addWidget(CardService.newTextParagraph().setText(
@@ -132,7 +138,13 @@ function buildCategoryCard(analysis, categoryKey) {
     });
   }
 
-  var feedbackSection = buildFeedbackActionsSection(category.feedback_actions || [], analysis.message_fingerprint);
+  var pendingFeedback = loadPendingFeedback_(analysis.message_fingerprint);
+  var feedbackSection = buildFeedbackActionsSection(
+    category.feedback_actions || [],
+    analysis.message_fingerprint,
+    categoryKey,
+    pendingFeedback
+  );
 
   return CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader()
@@ -173,27 +185,47 @@ function buildCheckWidget_(check) {
   return CardService.newTextParagraph().setText(text);
 }
 
-function buildFeedbackActionsSection(actions, messageFingerprint) {
+function buildFeedbackActionsSection(actions, messageFingerprint, categoryKey, pendingFeedback) {
   var section = CardService.newCardSection().setHeader('Feedback actions');
-  if (!actions || actions.length === 0) {
+  var displayActions = dedupeFeedbackActions_(actions || []);
+  if (displayActions.length === 0) {
     section.addWidget(CardService.newTextParagraph().setText(
       ltrText('No feedback actions are available for this category.')
     ));
     return section;
   }
 
-  actions.slice(0, 8).forEach(function(action) {
-    section.addWidget(buildFeedbackButton_(action, messageFingerprint));
+  section.addWidget(CardService.newTextParagraph().setText(
+    ltrText('Selections are staged. Press Refresh Analysis to apply them.')
+  ));
+
+  var currentGroup = null;
+  displayActions.slice(0, 12).forEach(function(action) {
+    var group = feedbackTargetDisplay_(action);
+    if (group && group !== currentGroup) {
+      currentGroup = group;
+      section.addWidget(CardService.newTextParagraph().setText(
+        '<b>' + ltrText(group) + '</b>'
+      ));
+    }
+    if (isFeedbackPending_(pendingFeedback, action)) {
+      section.addWidget(CardService.newTextParagraph().setText(
+        coloredDot(SELECTED_FEEDBACK_COLOR) + ' <b>' + ltrText('Selected pending action') + '</b>'
+      ));
+    }
+    section.addWidget(buildFeedbackButton_(action, messageFingerprint, categoryKey, pendingFeedback));
   });
 
   return section;
 }
 
-function buildFeedbackButton_(feedbackAction, messageFingerprint) {
+function buildFeedbackButton_(feedbackAction, messageFingerprint, categoryKey, pendingFeedback) {
   var isTrusted = feedbackAction.action === 'mark_trusted';
   var label = isTrusted ? 'trusted' : 'malicious';
+  var selected = isFeedbackPending_(pendingFeedback, feedbackAction);
+  var buttonLabel = (selected ? '\u2713 ' : '') + feedbackButtonLabel_(feedbackAction);
   var button = CardService.newTextButton()
-    .setText(feedbackAction.label)
+    .setText(buttonLabel)
     .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
     .setBackgroundColor(isTrusted ? '#188038' : '#D93025')
     .setOnClickAction(CardService.newAction()
@@ -203,9 +235,113 @@ function buildFeedbackButton_(feedbackAction, messageFingerprint) {
         indicator_type: feedbackAction.indicator_type || '',
         indicator_value: feedbackAction.indicator_value || '',
         label: label,
+        action: feedbackAction.action || '',
         source_category: feedbackAction.source_category || '',
+        category_key: categoryKey || feedbackAction.source_category || '',
       }));
   return button;
+}
+
+function dedupeFeedbackActions_(actions) {
+  var unique = {};
+  var deduped = [];
+  actions.forEach(function(action) {
+    var normalizedValue = normalizeFeedbackActionValue_(action);
+    var key = [
+      action.action || '',
+      action.indicator_type || '',
+      normalizedValue,
+      action.source_category || '',
+    ].join('|');
+    if (!unique[key]) {
+      unique[key] = true;
+      var cloned = {};
+      Object.keys(action || {}).forEach(function(field) {
+        cloned[field] = action[field];
+      });
+      cloned.indicator_value = action.indicator_value || '';
+      deduped.push(cloned);
+    }
+  });
+  return deduped;
+}
+
+function feedbackButtonLabel_(action) {
+  var target = feedbackTargetDisplay_(action);
+  var type = action.indicator_type || '';
+  var isTrusted = action.action === 'mark_trusted';
+  if (type === 'url') {
+    return (isTrusted ? 'Trust URL: ' : 'Mark URL malicious: ') + target;
+  }
+  if (type === 'link_domain' || type === 'sender_domain' || type === 'reply_to_domain') {
+    return (isTrusted ? 'Trust domain: ' : 'Mark domain malicious: ') + target;
+  }
+  if (type === 'sender_email') {
+    return (isTrusted ? 'Trust sender: ' : 'Mark sender malicious: ') + truncateMiddle_(target, 42);
+  }
+  if (type === 'attachment_extension') {
+    return 'Mark .' + target.replace(/^\./, '') + ' malicious';
+  }
+  if (type === 'attachment_filename_pattern') {
+    return 'Mark filename pattern malicious: ' + truncateMiddle_(target, 34);
+  }
+  return action.label || (isTrusted ? 'Trust indicator' : 'Mark indicator malicious');
+}
+
+function feedbackTargetDisplay_(action) {
+  var type = action.indicator_type || '';
+  var value = String(action.indicator_value || '');
+  if (type === 'url') {
+    return displayDomainFromUrl_(value) || truncateMiddle_(stripUrlNoise_(value), 40);
+  }
+  if (type === 'link_domain' || type === 'sender_domain' || type === 'reply_to_domain') {
+    return normalizeDisplayDomain_(value);
+  }
+  if (type === 'attachment_extension') {
+    return value.replace(/^\./, '').toLowerCase();
+  }
+  return truncateMiddle_(value, 48);
+}
+
+function normalizeFeedbackActionValue_(action) {
+  var type = action.indicator_type || '';
+  var value = String(action.indicator_value || '').toLowerCase().trim();
+  if (type === 'url') {
+    return stripUrlNoise_(value);
+  }
+  return value.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+}
+
+function displayDomainFromUrl_(value) {
+  var match = String(value || '').match(/^https?:\/\/([^\/?#]+)/i);
+  if (!match) {
+    return '';
+  }
+  return normalizeDisplayDomain_(match[1]);
+}
+
+function normalizeDisplayDomain_(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+    .split('?')[0]
+    .split('#')[0];
+}
+
+function stripUrlNoise_(value) {
+  return String(value || '').split('#')[0].split('?')[0].replace(/\/+$/, '');
+}
+
+function truncateMiddle_(value, maxLength) {
+  var text = String(value || '');
+  var limit = maxLength || 40;
+  if (text.length <= limit) {
+    return text;
+  }
+  var keep = Math.floor((limit - 3) / 2);
+  return text.slice(0, keep) + '...' + text.slice(text.length - keep);
 }
 
 function buildRecommendedActionsSection(recommendations) {

@@ -189,12 +189,13 @@ def _append_unique(checks: list[Check], seen: set[tuple[str, str]], check: Check
 
 
 def _add_url_action_pairs(actions: list[FeedbackAction], url: str, domain: str) -> None:
+    display_value = _display_value_for_url(url, domain)
     actions.extend(
         [
-            FeedbackAction(label="Trust this URL", action="mark_trusted", indicator_type="url", indicator_value=url, source_category="links"),
-            FeedbackAction(label="Mark URL malicious", action="mark_malicious", indicator_type="url", indicator_value=url, source_category="links"),
-            FeedbackAction(label="Trust this domain", action="mark_trusted", indicator_type="link_domain", indicator_value=domain, source_category="links"),
-            FeedbackAction(label="Mark domain malicious", action="mark_malicious", indicator_type="link_domain", indicator_value=domain, source_category="links"),
+            FeedbackAction(label=f"Trust URL: {display_value}", action="mark_trusted", indicator_type="url", indicator_value=url, source_category="links"),
+            FeedbackAction(label=f"Mark URL malicious: {display_value}", action="mark_malicious", indicator_type="url", indicator_value=url, source_category="links"),
+            FeedbackAction(label=f"Trust domain: {domain}", action="mark_trusted", indicator_type="link_domain", indicator_value=domain, source_category="links"),
+            FeedbackAction(label=f"Mark domain malicious: {domain}", action="mark_malicious", indicator_type="link_domain", indicator_value=domain, source_category="links"),
         ]
     )
 
@@ -202,5 +203,9 @@ def _add_url_action_pairs(actions: list[FeedbackAction], url: str, domain: str) 
 def _dedupe_actions(actions: list[FeedbackAction]) -> list[FeedbackAction]:
     unique: dict[tuple[str, str, str], FeedbackAction] = {}
     for action in actions:
-        unique.setdefault((action.action, action.indicator_type, action.indicator_value), action)
+        unique.setdefault((action.action, action.indicator_type, action.indicator_value.lower()), action)
     return list(unique.values())[:12]
+
+
+def _display_value_for_url(url: str, domain: str) -> str:
+    return domain or url[:60]
