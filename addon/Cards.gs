@@ -38,6 +38,7 @@ function buildMainAnalysisCard(analysis, confirmationMessage) {
       .setSubtitle('Explainable email risk assessment'))
     .addSection(topSection)
     .addSection(buildCategorySummarySection(analysis))
+    .addSection(buildSignalCategoryLegendSection())
     .addSection(buildRecommendedActionsSection(analysis.recommended_actions || analysis.recommendations || []))
     .addSection(buildAppliedAdjustmentsSection(analysis.applied_adjustments || []))
     .addSection(buildMainControlsSection())
@@ -57,15 +58,22 @@ function buildCategorySummarySection(analysis) {
     if (!category && categoryKey === 'user_feedback') {
       return;
     }
-    var label = category && category.title ? category.title : CATEGORY_LABELS[categoryKey];
+    var label = CATEGORY_LABELS[categoryKey] || (category && category.title) || categoryKey;
     var score = category ? valueOrZero_(category.score) : valueOrZero_((analysis.category_scores || {})[categoryKey]);
     var maxScore = category ? valueOrZero_(category.max_score) : '';
     var scoreText = maxScore !== '' ? score + ' out of ' + maxScore : String(score);
 
-    section.addWidget(CardService.newDecoratedText()
-      .setTopLabel(label)
-      .setText(ltrText(scoreText))
-      .setBottomLabel(category && category.short_summary ? truncateText(category.short_summary, 120) : ''));
+    section.addWidget(CardService.newTextParagraph().setText(
+      coloredDot(CATEGORY_COLORS[categoryKey]) + ' <b>' + ltrText(label) + '</b>'
+    ));
+    section.addWidget(CardService.newTextParagraph().setText(
+      ltrText('Score: ' + scoreText)
+    ));
+    if (category && category.short_summary) {
+      section.addWidget(CardService.newTextParagraph().setText(
+        ltrText(truncateText(category.short_summary, 140))
+      ));
+    }
 
     section.addWidget(buildCategoryButton_(categoryKey));
   });
@@ -101,7 +109,7 @@ function buildCategoryCard(analysis, categoryKey) {
 
   var section = CardService.newCardSection()
     .addWidget(CardService.newTextParagraph().setText(
-      '<b>' + ltrText(category.title) + '</b>'
+      coloredDot(CATEGORY_COLORS[categoryKey]) + ' <b>' + ltrText(CATEGORY_LABELS[categoryKey] || category.title) + '</b>'
     ))
     .addWidget(CardService.newTextParagraph().setText(
       ltrText('Score: ' + valueOrZero_(category.score) + ' out of ' + valueOrZero_(category.max_score))
@@ -134,6 +142,22 @@ function buildCategoryCard(analysis, categoryKey) {
     .addSection(feedbackSection)
     .addSection(buildDrilldownControlsSection())
     .build();
+}
+
+function buildSignalCategoryLegendSection() {
+  var section = CardService.newCardSection()
+    .setHeader('Signal category colors')
+    .addWidget(CardService.newTextParagraph().setText(
+      ltrText('Category color = signal type. Verdict color = overall severity.')
+    ));
+
+  SIGNAL_LEGEND_ITEMS.forEach(function(item) {
+    section.addWidget(CardService.newTextParagraph().setText(
+      coloredDot(item.color) + ' ' + ltrText(item.label)
+    ));
+  });
+
+  return section;
 }
 
 function buildCheckWidget_(check) {
@@ -308,9 +332,9 @@ function buildLegendSection() {
     .addWidget(CardService.newTextParagraph().setText(
       ltrText('Signal colors show what type of risk was detected.')
     ));
-  CATEGORY_ORDER.forEach(function(categoryKey) {
+  SIGNAL_LEGEND_ITEMS.forEach(function(item) {
     section.addWidget(CardService.newTextParagraph().setText(
-      coloredDot(CATEGORY_COLORS[categoryKey]) + ' ' + ltrText(CATEGORY_LABELS[categoryKey])
+      coloredDot(item.color) + ' ' + ltrText(item.label)
     ));
   });
   return section;

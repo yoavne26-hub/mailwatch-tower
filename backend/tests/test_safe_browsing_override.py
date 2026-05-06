@@ -41,4 +41,5 @@ def test_safe_browsing_wins_over_trusted_url(tmp_path) -> None:
     )
 
     assert result.categories["external_intel"].score == 50
+    assert result.categories["links"].score == 0
     assert any(item.type == "trusted_indicator_overridden_by_external_intel" for item in result.applied_adjustments)

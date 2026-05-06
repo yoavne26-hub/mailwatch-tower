@@ -2,7 +2,8 @@
 
 from copy import deepcopy
 
-from app.feedback.normalization import normalize_indicator
+from app.analyzers.common import category_status
+from app.feedback.normalization import domain_for_url_indicator, normalize_indicator
 from app.feedback.repository import FeedbackIndicator
 from app.models import AnalyzeRequest, AppliedAdjustment, CategoryDetail, Check
 from app.scoring.config import (
@@ -34,6 +35,9 @@ def apply_feedback_adjustments(
     for category in adjusted.values():
         if category.title != CATEGORY_TITLES["user_feedback"]:
             category.score = _capped_score(category)
+            category.status = category_status(category.checks)
+            if category.score == 0:
+                category.short_summary = _zero_score_summary(category)
     return adjusted, adjustments
 
 
@@ -97,12 +101,20 @@ def _apply_trusted_urls(
     if "links" not in categories:
         return
     trusted_values = {(match.indicator_type, match.indicator_value) for match in trusted_matches}
+    trusted_domains = {
+        match.indicator_value
+        for match in trusted_matches
+        if match.indicator_type == "link_domain"
+    }
     removed = 0
     for check in categories["links"].checks:
         if check.points <= 0 or check.indicator_type not in {"url", "link_domain"} or not check.indicator_value:
             continue
         normalized_value = normalize_indicator(check.indicator_type, check.indicator_value)
-        if (check.indicator_type, normalized_value) in trusted_values:
+        check_domain = _domain_for_link_check(check)
+        if (check.indicator_type, normalized_value) in trusted_values or (
+            check_domain is not None and check_domain in trusted_domains
+        ):
             removed += check.points
             check.points = 0
             check.result = "warning"
@@ -128,6 +140,8 @@ def _apply_malicious_matches(
     user_feedback = _ensure_user_feedback_category(categories)
     contribution = min(MALICIOUS_FEEDBACK_CAP, MALICIOUS_FEEDBACK_POINTS)
     user_feedback.score += contribution
+    user_feedback.status = "warning"
+    user_feedback.short_summary = "User-marked malicious indicators matched this message."
     for index, match in enumerate(malicious_matches):
         user_feedback.checks.append(
             Check(
@@ -206,3 +220,21 @@ def _capped_score(category: CategoryDetail) -> int:
     if category.title == CATEGORY_TITLES["external_intel"]:
         return min(category.max_score, sum(max(0, check.points) for check in category.checks))
     return min(category.max_score, sum(max(0, check.points) for check in category.checks))
+
+
+def _domain_for_link_check(check: Check) -> str | None:
+    if not check.indicator_value:
+        return None
+    if check.indicator_type == "link_domain":
+        return normalize_indicator("link_domain", check.indicator_value)
+    if check.indicator_type == "url":
+        return domain_for_url_indicator(check.indicator_value)
+    return None
+
+
+def _zero_score_summary(category: CategoryDetail) -> str:
+    if category.title == CATEGORY_TITLES["links"]:
+        return "No active local URL heuristic points remain after trusted feedback adjustments."
+    if category.title == CATEGORY_TITLES["sender_auth"]:
+        return "No active sender identity heuristic points remain after trusted feedback adjustments."
+    return category.short_summary

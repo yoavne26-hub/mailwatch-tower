@@ -34,3 +34,35 @@ def test_malicious_feedback_adds_capped_score_and_lists_repeated_matches(tmp_pat
     assert len(result.categories["user_feedback"].checks) >= 3
     assert sum(check.points for check in result.categories["user_feedback"].checks) == 50
     assert any(item.type == "malicious_feedback_match" for item in result.applied_adjustments)
+
+
+def test_malicious_domain_is_not_suppressed_by_trusted_url(tmp_path) -> None:
+    service = FeedbackService(FeedbackRepository(f"sqlite:///{tmp_path / 'feedback.db'}"))
+    service.save_feedback(
+        FeedbackRequest(
+            indicator_type="url",
+            indicator_value="http://bad.example/login",
+            label="trusted",
+            source_category="links",
+        )
+    )
+    service.save_feedback(
+        FeedbackRequest(
+            indicator_type="link_domain",
+            indicator_value="bad.example",
+            label="malicious",
+            source_category="links",
+        )
+    )
+
+    result = analyze_email(
+        AnalyzeRequest(
+            sender_email="sender@example.com",
+            body_text="Login at http://bad.example/login",
+            urls=[{"url": "http://bad.example/login", "surrounding_text": "login"}],
+        ),
+        feedback_service=service,
+    )
+
+    assert result.category_scores["user_feedback"] == 50
+    assert any(item.type == "malicious_feedback_match" for item in result.applied_adjustments)
