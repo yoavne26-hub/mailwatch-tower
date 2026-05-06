@@ -33,7 +33,7 @@ var CATEGORY_COLORS = {
   links: '#0B3D91',
   attachments: '#E91E63',
   content: '#000000',
-  external_intel: '#4A4A4A',
+  external_intel: '#6A1B9A',
   user_feedback: '#4A4A4A',
 };
 
@@ -42,7 +42,7 @@ var SIGNAL_LEGEND_ITEMS = [
   { label: 'Links and URLs', color: '#0B3D91' },
   { label: 'Attachments', color: '#E91E63' },
   { label: 'Content / social engineering', color: '#000000' },
-  { label: 'Headers / authentication', color: '#6A1B9A' },
+  { label: 'External Intelligence', color: '#6A1B9A' },
   { label: 'Metadata / context', color: '#4A4A4A' },
 ];
 
