@@ -298,6 +298,34 @@ User feedback adjusts the score but does not blindly override critical or high-c
 
 See [docs/scoring_model.md](docs/scoring_model.md).
 
+## Security Research Basis
+
+MailWatch Tower was designed after reviewing practical malicious-email indicators and implementation/security references. These sources informed the scoring model, signal selection, privacy boundaries, and security trade-offs. The project does not claim to fully implement every standard listed here.
+
+### Email security and authentication
+
+- [NIST SP 800-177 Rev. 1, Trustworthy Email](https://csrc.nist.gov/pubs/sp/800/177/r1/final) shaped the focus on SPF, DKIM, DMARC, SMTP, DNS, and TLS as sender-trust context rather than absolute proof of safety.
+- [Google email authentication guidance](https://support.google.com/mail/answer/81126) reinforced the importance of SPF, DKIM, and DMARC results in Gmail-facing analysis.
+- [RFC 5322](https://www.rfc-editor.org/rfc/rfc5322) informed the handling of email fields such as `From`, `Reply-To`, `Subject`, and `Message-ID`.
+- [RFC 7208](https://www.rfc-editor.org/rfc/rfc7208), [RFC 6376](https://www.rfc-editor.org/rfc/rfc6376), and [RFC 7489](https://www.rfc-editor.org/rfc/rfc7489) informed SPF, DKIM, and DMARC-related signal naming and explanations.
+
+### Phishing and social engineering indicators
+
+- [CISA Recognize and Report Phishing](https://www.cisa.gov/secure-our-world/recognize-and-report-phishing) informed checks for urgency, emotional pressure, personal or financial requests, shortened URLs, and incorrect sender/link patterns.
+- [NIST SP 800-63B-4](https://csrc.nist.gov/pubs/sp/800/63/B/4/final) and the broader [SP 800-63-4 Digital Identity Guidelines](https://csrc.nist.gov/pubs/sp/800/63/4/final) informed why credential, MFA, and OTP lures receive explicit weight: manually entered secrets and codes are meaningful phishing targets.
+- [MITRE ATT&CK T1566](https://attack.mitre.org/techniques/T1566/), [T1566.001](https://attack.mitre.org/techniques/T1566/001/), and [T1566.002](https://attack.mitre.org/techniques/T1566/002/) informed the treatment of phishing, spearphishing attachments, and spearphishing links as initial-access risk patterns.
+
+### Gmail Add-on and backend implementation
+
+- [Google Workspace Add-ons card interfaces](https://developers.google.com/workspace/add-ons/concepts/card-interfaces) and [contextual trigger docs](https://developers.google.com/workspace/add-ons/concepts/workspace-triggers) informed the card-based Gmail sidebar flow and current-message analysis model.
+- [Google Apps Script UrlFetchApp](https://developers.google.com/apps-script/reference/url-fetch/url-fetch-app) informed the add-on-to-backend HTTPS request path.
+- [Google Safe Browsing API](https://developers.google.com/safe-browsing/reference/rest) informed the optional URL threat-intelligence enrichment, with no-match treated only as "no known match found."
+
+### Secure input handling and privacy
+
+- [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html) informed early validation, size limits, structured parsing, and treating email fields as untrusted input.
+- [OWASP SSRF Prevention Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html) informed the decision not to automatically visit suspicious URLs and to parse/enrich links carefully.
+
 ## Backend API
 
 ### GET `/health`
@@ -459,7 +487,7 @@ See [docs/limitations.md](docs/limitations.md).
 - Managed persistent database.
 - Organization-level allow/block lists.
 - Richer SPF/DKIM/DMARC parsing.
-- Additional threat-intelligence sources.
+- Additional threat-intelligence sources like virustotal.
 - Better HTML anchor extraction.
 - Attachment sandboxing in a safe environment.
 - Report phishing workflow.
